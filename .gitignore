@@ -1,0 +1,82 @@
+# ------------------------------
+# OS / Editor
+# ------------------------------
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ------------------------------
+# Git / misc local
+# ------------------------------
+*.log
+*.tmp
+*.bak
+
+# ------------------------------
+# Python / FastAPI backend
+# ------------------------------
+__pycache__/
+*.py[cod]
+*.pyd
+*.pyo
+*.so
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.coverage
+.coverage.*
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Backend env/secrets (keep example file)
+backend/.env
+backend/.env.*
+!backend/.env.example
+
+# Alembic local artifacts
+backend/alembic.log
+
+# Local runtime data
+backend/data/
+backend/storage/
+backend/backups/
+
+# ------------------------------
+# Node / Vite frontend
+# ------------------------------
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/.npm/
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+frontend/pnpm-debug.log*
+frontend/*.tsbuildinfo
+frontend/vite.config.js
+frontend/vite.config.d.ts
+
+# ------------------------------
+# Project-level env/secrets
+# ------------------------------
+.env
+.env.*
+!.env.example
+
+# ------------------------------
+# Docker / local containers
+# ------------------------------
+*.pid
+*.seed
+
+# If any local bind-mount folders are created later
+postgres_data/
+gradebook_data/

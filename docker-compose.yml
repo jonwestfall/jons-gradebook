@@ -1,0 +1,71 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: gradebook-db
+    environment:
+      POSTGRES_DB: gradebook
+      POSTGRES_USER: gradebook
+      POSTGRES_PASSWORD: gradebook
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - '5432:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U gradebook -d gradebook']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+    container_name: gradebook-backend
+    environment:
+      APP_NAME: Jon's Gradebook API
+      ENV: production
+      API_V1_PREFIX: /api/v1
+      SECRET_KEY: ${SECRET_KEY:-replace-me}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
+      DATABASE_URL: postgresql+psycopg://gradebook:gradebook@db:5432/gradebook
+      CANVAS_BASE_URL: ${CANVAS_BASE_URL:-}
+      CANVAS_API_TOKEN: ${CANVAS_API_TOKEN:-}
+      CANVAS_ACCOUNT_ID: ${CANVAS_ACCOUNT_ID:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+      DEFAULT_TIMEZONE: ${DEFAULT_TIMEZONE:-America/Chicago}
+      DAILY_SYNC_CRON: ${DAILY_SYNC_CRON:-0 5 * * *}
+      STORAGE_ROOT: /data/storage
+      BACKUP_ROOT: /data/backups
+      CORS_ORIGINS: http://localhost:8080
+      LLM_DEIDENTIFY_DEFAULT: 'true'
+    volumes:
+      - gradebook_data:/data
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - '8000:8000'
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: gradebook-frontend
+    depends_on:
+      - backend
+    ports:
+      - '8080:80'
+
+  # Optional local LLM runtime
+  # ollama:
+  #   image: ollama/ollama
+  #   container_name: gradebook-ollama
+  #   ports:
+  #     - '11434:11434'
+  #   volumes:
+  #     - ollama_data:/root/.ollama
+
+volumes:
+  postgres_data:
+  gradebook_data:
+  # ollama_data:
