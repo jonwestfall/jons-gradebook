@@ -8,7 +8,7 @@ from datetime import date, datetime, time, timezone
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -115,6 +115,24 @@ def inspect_backup(artifact: BackupArtifact) -> dict[str, Any]:
         "settings": payload.get("settings") or {},
         "table_counts": table_counts,
         "file_count": len(payload.get("files") or []),
+    }
+
+
+def inspect_current_state(db: Session) -> dict[str, Any]:
+    settings = get_settings()
+    storage_root = Path(settings.storage_root)
+
+    table_counts: dict[str, int] = {}
+    for table in Base.metadata.sorted_tables:
+        table_counts[table.name] = int(db.execute(select(func.count()).select_from(table)).scalar_one())
+
+    file_count = 0
+    if storage_root.exists():
+        file_count = sum(1 for path in storage_root.rglob("*") if path.is_file())
+
+    return {
+        "table_counts": table_counts,
+        "file_count": file_count,
     }
 
 

@@ -12,7 +12,14 @@ def get_fernet() -> Fernet:
     settings = get_settings()
     configured = settings.encryption_key.strip()
     if configured:
-        key = configured.encode("utf-8")
+        # Accept either a proper Fernet key or a passphrase-like secret.
+        # If it's not a valid Fernet key, derive one deterministically.
+        candidate = configured.encode("utf-8")
+        try:
+            decoded = base64.urlsafe_b64decode(candidate)
+            key = candidate if len(decoded) == 32 else base64.urlsafe_b64encode(hashlib.sha256(candidate).digest())
+        except Exception:
+            key = base64.urlsafe_b64encode(hashlib.sha256(candidate).digest())
     else:
         # Deterministic local fallback so development can start without manual key generation.
         digest = hashlib.sha256(settings.secret_key.encode("utf-8")).digest()

@@ -7,7 +7,12 @@ from sqlalchemy.orm import Session
 from app.db.models import BackupArtifact
 from app.db.session import get_db
 from app.schemas.backup import BackupCreateRequest, BackupRestoreRequest
-from app.services.backup import create_encrypted_backup, inspect_backup, restore_from_backup_artifact
+from app.services.backup import (
+    create_encrypted_backup,
+    inspect_backup,
+    inspect_current_state,
+    restore_from_backup_artifact,
+)
 
 router = APIRouter(prefix="/backup", tags=["backup"])
 
@@ -54,6 +59,38 @@ def get_backup(backup_id: int, db: Session = Depends(get_db)) -> dict:
         "created_at": artifact.created_at.isoformat(),
         "note": artifact.note,
         **details,
+    }
+
+
+@router.get("/{backup_id}/preflight")
+def get_backup_restore_preflight(backup_id: int, db: Session = Depends(get_db)) -> dict:
+    artifact = db.get(BackupArtifact, backup_id)
+    if not artifact:
+        raise HTTPException(status_code=404, detail="Backup not found")
+
+    backup_details = inspect_backup(artifact)
+    current_details = inspect_current_state(db)
+
+    backup_tables = backup_details.get("table_counts", {})
+    current_tables = current_details.get("table_counts", {})
+    all_table_names = sorted(set(backup_tables.keys()) | set(current_tables.keys()))
+    table_deltas = [
+        {
+            "table": table_name,
+            "current_rows": int(current_tables.get(table_name, 0)),
+            "backup_rows": int(backup_tables.get(table_name, 0)),
+            "delta_rows": int(backup_tables.get(table_name, 0)) - int(current_tables.get(table_name, 0)),
+        }
+        for table_name in all_table_names
+    ]
+
+    return {
+        "backup_id": artifact.id,
+        "backup_generated_at": backup_details.get("generated_at"),
+        "current_file_count": int(current_details.get("file_count", 0)),
+        "backup_file_count": int(backup_details.get("file_count", 0)),
+        "file_delta": int(backup_details.get("file_count", 0)) - int(current_details.get("file_count", 0)),
+        "table_deltas": table_deltas,
     }
 
 

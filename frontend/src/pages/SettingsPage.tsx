@@ -17,6 +17,20 @@ type BackupDetail = BackupArtifact & {
   file_count: number
 }
 
+type RestorePreflight = {
+  backup_id: number
+  backup_generated_at?: string | null
+  current_file_count: number
+  backup_file_count: number
+  file_delta: number
+  table_deltas: {
+    table: string
+    current_rows: number
+    backup_rows: number
+    delta_rows: number
+  }[]
+}
+
 export function SettingsPage() {
   const [backups, setBackups] = useState<BackupArtifact[]>([])
   const [selectedBackupId, setSelectedBackupId] = useState<number | null>(null)
@@ -26,6 +40,7 @@ export function SettingsPage() {
   const [error, setError] = useState<string | null>(null)
   const [lastRestoreMessage, setLastRestoreMessage] = useState<string | null>(null)
   const [restorePhrase, setRestorePhrase] = useState('')
+  const [preflight, setPreflight] = useState<RestorePreflight | null>(null)
 
   async function loadBackups() {
     const data = await api.get<BackupArtifact[]>('/backup/')
@@ -40,6 +55,8 @@ export function SettingsPage() {
   async function loadBackupDetail(backupId: number) {
     const detail = await api.get<BackupDetail>(`/backup/${backupId}`)
     setSelectedBackup(detail)
+    const preflightData = await api.get<RestorePreflight>(`/backup/${backupId}/preflight`)
+    setPreflight(preflightData)
   }
 
   useEffect(() => {
@@ -170,6 +187,40 @@ export function SettingsPage() {
                   </li>
                 ))}
               </ul>
+            </div>
+          </div>
+        ) : null}
+
+        {preflight ? (
+          <div className="card" style={{ marginTop: '0.75rem' }}>
+            <strong>Restore Preflight Comparison</strong>
+            <div>
+              Files: current {preflight.current_file_count} vs backup {preflight.backup_file_count} (delta{' '}
+              {preflight.file_delta >= 0 ? `+${preflight.file_delta}` : preflight.file_delta})
+            </div>
+            <div className="card" style={{ marginTop: '0.5rem', maxHeight: '220px', overflow: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: 'left', padding: '0.35rem' }}>Table</th>
+                    <th style={{ textAlign: 'left', padding: '0.35rem' }}>Current</th>
+                    <th style={{ textAlign: 'left', padding: '0.35rem' }}>Backup</th>
+                    <th style={{ textAlign: 'left', padding: '0.35rem' }}>Delta</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {preflight.table_deltas.map((row) => (
+                    <tr key={row.table}>
+                      <td style={{ borderTop: '1px solid #d5c8aa', padding: '0.35rem' }}>{row.table}</td>
+                      <td style={{ borderTop: '1px solid #d5c8aa', padding: '0.35rem' }}>{row.current_rows}</td>
+                      <td style={{ borderTop: '1px solid #d5c8aa', padding: '0.35rem' }}>{row.backup_rows}</td>
+                      <td style={{ borderTop: '1px solid #d5c8aa', padding: '0.35rem' }}>
+                        {row.delta_rows >= 0 ? `+${row.delta_rows}` : row.delta_rows}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         ) : null}
