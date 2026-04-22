@@ -109,10 +109,43 @@ export function CanvasSyncPage() {
   const [savingMappingField, setSavingMappingField] = useState<string | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
   const [showCoursePicker, setShowCoursePicker] = useState(false)
+  const [coursePickerMode, setCoursePickerMode] = useState<'replace' | 'add'>('replace')
+  const [courseSearch, setCourseSearch] = useState('')
+  const [courseTermFilter, setCourseTermFilter] = useState('all')
+  const [coursePage, setCoursePage] = useState(1)
   const [error, setError] = useState<string | null>(null)
 
   const selectedCount = useMemo(() => courses.filter((course) => course.is_selected).length, [courses])
   const mappingTargets = ['first_name', 'last_name', 'email', 'student_number', 'institution_name'] as const
+  const coursePageSize = 12
+
+  const courseTermOptions = useMemo(() => {
+    const terms = new Set<string>()
+    courses.forEach((course) => {
+      const term = (course.term_name || '').trim()
+      if (term) terms.add(term)
+    })
+    return ['all', ...Array.from(terms).sort((a, b) => a.localeCompare(b))]
+  }, [courses])
+
+  const filteredCourses = useMemo(() => {
+    const query = courseSearch.trim().toLowerCase()
+    return courses.filter((course) => {
+      if (courseTermFilter !== 'all' && (course.term_name || '') !== courseTermFilter) return false
+      if (!query) return true
+      const haystack = [course.name, course.course_code || '', course.term_name || '', course.canvas_course_id]
+        .join(' ')
+        .toLowerCase()
+      return haystack.includes(query)
+    })
+  }, [courseSearch, courseTermFilter, courses])
+
+  const pagedCourses = useMemo(() => {
+    const start = (coursePage - 1) * coursePageSize
+    return filteredCourses.slice(start, start + coursePageSize)
+  }, [coursePage, filteredCourses])
+
+  const coursePageCount = Math.max(1, Math.ceil(filteredCourses.length / coursePageSize))
 
   async function loadRuns() {
     const data = await api.get<SyncRun[]>('/canvas/sync/runs')
@@ -213,7 +246,7 @@ export function CanvasSyncPage() {
     }
   }
 
-  async function discoverCourses(showPicker = false) {
+  async function discoverCourses(showPicker = false, mode: 'replace' | 'add' = 'replace') {
     setDiscovering(true)
     setError(null)
     try {
@@ -221,7 +254,9 @@ export function CanvasSyncPage() {
       setCourses(data)
       setCheckedIds(new Set(data.filter((course) => course.is_selected).map((course) => course.canvas_course_id)))
       if (showPicker) {
+        setCoursePickerMode(mode)
         setShowCoursePicker(true)
+        setCoursePage(1)
       }
     } catch (err) {
       setError((err as Error).message)
@@ -280,6 +315,10 @@ export function CanvasSyncPage() {
   }, [])
 
   useEffect(() => {
+    setCoursePage(1)
+  }, [courseSearch, courseTermFilter])
+
+  useEffect(() => {
     if (!selectedRunId) return
     void loadRunDetail(selectedRunId, 0)
   }, [selectedRunId, eventActionFilter, eventEntityFilter])
@@ -320,24 +359,49 @@ export function CanvasSyncPage() {
         <p>
           Selected classes: <strong>{selectedCount}</strong>
         </p>
-        <button onClick={() => void discoverCourses(true)} disabled={discovering}>
-          {discovering ? 'Loading classes...' : selectedCount === 0 ? 'Choose Classes' : 'Manage Classes'}
+        <button onClick={() => void discoverCourses(true, 'replace')} disabled={discovering}>
+          {discovering ? 'Loading classes...' : selectedCount === 0 ? 'Choose Initial Classes' : 'Review / Replace Selection'}
         </button>{' '}
-        <button onClick={() => void discoverCourses(true)} disabled={discovering}>
-          Add Classes
+        <button onClick={() => void discoverCourses(true, 'add')} disabled={discovering}>
+          Discover + Add More Classes
         </button>{' '}
         <button onClick={runManualSync} disabled={loading || selectedCount === 0}>
           {loading ? 'Syncing...' : 'Run Manual Sync'}
         </button>
+        <p className="table-subtle">
+          Review/Replace sets the exact persistent allowlist. Discover+Add keeps your existing allowlist and only adds
+          newly checked classes.
+        </p>
         {selectedCount === 0 ? <p className="warning">No classes selected yet. Choose classes first.</p> : null}
       </div>
 
       {showCoursePicker ? (
         <article className="card">
           <h3>Select Canvas Classes</h3>
-          <p>Canvas course list includes term details; choose classes to sync now and going forward.</p>
+          <p>
+            {coursePickerMode === 'replace'
+              ? 'Replace mode: checked classes become your persistent allowlist.'
+              : 'Add mode: checked classes are added to your current allowlist; existing classes remain selected.'}
+          </p>
+          <div className="gradebook-toolbar compact-grid">
+            <input
+              value={courseSearch}
+              onChange={(event) => setCourseSearch(event.target.value)}
+              placeholder="Filter by course title, code, term, or ID"
+            />
+            <select value={courseTermFilter} onChange={(event) => setCourseTermFilter(event.target.value)}>
+              {courseTermOptions.map((term) => (
+                <option key={term} value={term}>
+                  {term === 'all' ? 'All Terms' : term}
+                </option>
+              ))}
+            </select>
+            <div className="table-subtle">
+              Showing {pagedCourses.length} of {filteredCourses.length} matching courses
+            </div>
+          </div>
           <div className="list">
-            {courses.map((course) => (
+            {pagedCourses.map((course) => (
               <label key={course.canvas_course_id} className="card" style={{ display: 'block' }}>
                 <input
                   type="checkbox"
@@ -353,12 +417,27 @@ export function CanvasSyncPage() {
                 </div>
               </label>
             ))}
+            {pagedCourses.length === 0 ? <p>No courses match current filters.</p> : null}
+          </div>
+          <div className="gradebook-toolbar compact-grid">
+            <button onClick={() => setCoursePage((prev) => Math.max(1, prev - 1))} disabled={coursePage <= 1}>
+              Previous Page
+            </button>
+            <div className="table-subtle">
+              Page {coursePage} of {coursePageCount}
+            </div>
+            <button
+              onClick={() => setCoursePage((prev) => Math.min(coursePageCount, prev + 1))}
+              disabled={coursePage >= coursePageCount}
+            >
+              Next Page
+            </button>
           </div>
           <button onClick={() => void saveSelection('replace')} disabled={savingSelection}>
-            {savingSelection ? 'Saving...' : 'Save Selection (Replace)'}
+            {savingSelection ? 'Saving...' : 'Save Exact Selection (Replace)'}
           </button>{' '}
           <button onClick={() => void saveSelection('add')} disabled={savingSelection}>
-            {savingSelection ? 'Saving...' : 'Add Checked Classes'}
+            {savingSelection ? 'Saving...' : 'Add Checked Classes (Keep Existing)'}
           </button>{' '}
           <button onClick={() => setShowCoursePicker(false)} disabled={savingSelection}>
             Cancel
@@ -366,8 +445,8 @@ export function CanvasSyncPage() {
         </article>
       ) : null}
 
-      <article className="card">
-        <h3>Student Metadata Mapping</h3>
+      <details className="card" open>
+        <summary><strong>Student Metadata Mapping</strong></summary>
         <p>
           Configure how Canvas student metadata maps to local student columns. Use comma-separated source paths in
           priority order.
@@ -400,10 +479,10 @@ export function CanvasSyncPage() {
         ) : (
           <p>Loading mapping configuration...</p>
         )}
-      </article>
+      </details>
 
-      <article className="card">
-        <h3>Canvas Metadata Preview</h3>
+      <details className="card">
+        <summary><strong>Canvas Metadata Preview</strong></summary>
         <p>
           Preview raw metadata labels from your Canvas enrollment payload so you can choose reliable mapping paths for
           this installation.
@@ -477,27 +556,30 @@ export function CanvasSyncPage() {
         ) : (
           <p>No metadata preview loaded yet.</p>
         )}
-      </article>
+      </details>
 
       {error ? <p className="error">{error}</p> : null}
 
-      <ul className="list">
-        {runs.map((run) => (
-          <li key={run.id} className="card" style={{ cursor: 'pointer' }} onClick={() => setSelectedRunId(run.id)}>
-            <strong>Run #{run.id}</strong>
-            <div>{run.trigger_type}</div>
-            <div>Status: {run.status}</div>
-            <div>Started: {new Date(run.started_at).toLocaleString()}</div>
-            {run.finished_at ? <div>Finished: {new Date(run.finished_at).toLocaleString()}</div> : null}
-            {run.event_counts ? (
-              <div>
-                Changes: +{run.event_counts.created} / ~{run.event_counts.updated} / -{run.event_counts.deleted}
-              </div>
-            ) : null}
-            {run.error_message ? <div className="error">{run.error_message}</div> : null}
-          </li>
-        ))}
-      </ul>
+      <details className="card" open>
+        <summary><strong>Sync Runs</strong></summary>
+        <ul className="list">
+          {runs.map((run) => (
+            <li key={run.id} className="card" style={{ cursor: 'pointer' }} onClick={() => setSelectedRunId(run.id)}>
+              <strong>Run #{run.id}</strong>
+              <div>{run.trigger_type}</div>
+              <div>Status: {run.status}</div>
+              <div>Started: {new Date(run.started_at).toLocaleString()}</div>
+              {run.finished_at ? <div>Finished: {new Date(run.finished_at).toLocaleString()}</div> : null}
+              {run.event_counts ? (
+                <div>
+                  Changes: +{run.event_counts.created} / ~{run.event_counts.updated} / -{run.event_counts.deleted}
+                </div>
+              ) : null}
+              {run.error_message ? <div className="error">{run.error_message}</div> : null}
+            </li>
+          ))}
+        </ul>
+      </details>
 
       {selectedRunDetail ? (
         <article className="card">
