@@ -11,9 +11,9 @@ Use this checklist to validate V1 end-to-end before release or major merge.
 
 ## 1) Environment + Startup
 
-- [ ] `docker compose up --build -d` completes without container crash loops.
-- [ ] `docker compose ps` shows `db`, `backend`, `frontend` healthy/up.
-- [ ] App loads at `http://localhost:8080` without 502/blank page.
+- [X] `docker compose up --build -d` completes without container crash loops.
+- [X] `docker compose ps` shows `db`, `backend`, `frontend` healthy/up.
+- [X] App loads at `http://localhost:8080` without 502/blank page.
 - [ ] Backend docs load at `http://localhost:8000/docs`.
 - [ ] No migration errors in `docker compose logs backend`.
 
