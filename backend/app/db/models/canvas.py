@@ -57,6 +57,14 @@ class CanvasCourseSelection(Base, TimestampMixin):
     is_selected: Mapped[bool] = mapped_column(nullable=False, default=False)
 
 
+class CanvasStudentFieldMapping(Base, TimestampMixin):
+    __tablename__ = "canvas_student_field_mappings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    target_field: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
+    source_paths: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+
+
 class CanvasCourseSnapshot(Base):
     __tablename__ = "canvas_course_snapshots"
 

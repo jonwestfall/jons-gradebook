@@ -26,6 +26,7 @@ from app.db.models import (
     SyncTrigger,
 )
 from app.services.canvas.client import CanvasReadClient
+from app.services.canvas.student_mapping import get_effective_mapping, resolve_student_fields
 from app.services.canvas.selection import selected_course_ids
 
 
@@ -61,6 +62,7 @@ def run_canvas_sync(
     db.refresh(run)
 
     client = CanvasReadClient()
+    field_mapping = get_effective_mapping(db)
 
     try:
         if not client.configured:
@@ -123,8 +125,11 @@ def run_canvas_sync(
             for enrollment_payload in enrollments:
                 user_payload = enrollment_payload.get("user") or {}
                 canvas_user_id = str(user_payload.get("id") or enrollment_payload.get("user_id"))
+                resolved_fields = resolve_student_fields(enrollment_payload, field_mapping)
                 full_name = user_payload.get("name") or enrollment_payload.get("user", {}).get("short_name", "")
-                first_name, last_name = _split_name(full_name)
+                split_first, split_last = _split_name(full_name)
+                first_name = resolved_fields.get("first_name") or split_first
+                last_name = resolved_fields.get("last_name") or split_last
 
                 db.add(
                     CanvasEnrollmentSnapshot(
@@ -143,17 +148,18 @@ def run_canvas_sync(
                         canvas_user_id=canvas_user_id,
                         first_name=first_name,
                         last_name=last_name,
-                        email=user_payload.get("login_id"),
-                        student_number=str(user_payload.get("sis_user_id") or "") or None,
-                        institution_name=None,
+                        email=resolved_fields.get("email"),
+                        student_number=resolved_fields.get("student_number"),
+                        institution_name=resolved_fields.get("institution_name"),
                     )
                     db.add(student)
                     db.flush()
                 else:
                     student.first_name = first_name or student.first_name
                     student.last_name = last_name or student.last_name
-                    student.email = user_payload.get("login_id") or student.email
-                    student.student_number = str(user_payload.get("sis_user_id") or "") or student.student_number
+                    student.email = resolved_fields.get("email") or student.email
+                    student.student_number = resolved_fields.get("student_number") or student.student_number
+                    student.institution_name = resolved_fields.get("institution_name") or student.institution_name
 
                 enrollment = db.scalar(
                     select(Enrollment).where(Enrollment.course_id == course.id, Enrollment.student_id == student.id)

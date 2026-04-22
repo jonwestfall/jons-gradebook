@@ -1,13 +1,29 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.models import CanvasSyncRun
 from app.db.session import get_db
-from app.schemas.canvas import CanvasCourseSelectionUpdateRequest, CanvasSyncRequest
-from app.services.canvas.selection import discover_and_cache_courses, list_course_selections, set_selected_courses
+from app.schemas.canvas import (
+    CanvasCourseSelectionUpdateRequest,
+    CanvasStudentFieldMappingUpdateRequest,
+    CanvasSyncRequest,
+)
+from app.services.canvas.selection import (
+    discover_and_cache_courses,
+    list_course_selections,
+    selected_course_ids,
+    set_selected_courses,
+)
+from app.services.canvas.student_mapping import (
+    COMMON_SOURCE_PATHS,
+    DEFAULT_MAPPING,
+    list_mapping_config,
+    preview_student_metadata,
+    set_mapping_config,
+)
 from app.services.canvas.sync import run_canvas_sync
 
 router = APIRouter(prefix="/canvas", tags=["canvas"])
@@ -81,6 +97,46 @@ def update_selected_canvas_courses(payload: CanvasCourseSelectionUpdateRequest, 
         "selected_count": len(selected),
         "selected_course_ids": [row.canvas_course_id for row in selected],
     }
+
+
+@router.get("/student-metadata/mapping")
+def get_student_metadata_mapping(db: Session = Depends(get_db)) -> dict:
+    return {
+        "mappings": list_mapping_config(db),
+        "common_source_paths": COMMON_SOURCE_PATHS,
+        "default_mapping": DEFAULT_MAPPING,
+    }
+
+
+@router.put("/student-metadata/mapping")
+def update_student_metadata_mapping(payload: CanvasStudentFieldMappingUpdateRequest, db: Session = Depends(get_db)) -> dict:
+    try:
+        mapping = set_mapping_config(db, target_field=payload.target_field, source_paths=payload.source_paths)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return mapping
+
+
+@router.get("/student-metadata/preview")
+def get_student_metadata_preview(
+    canvas_course_id: str | None = Query(default=None),
+    limit: int = Query(default=8, ge=1, le=25),
+    db: Session = Depends(get_db),
+) -> dict:
+    target_course_id = canvas_course_id
+    if not target_course_id:
+        selected = selected_course_ids(db)
+        if not selected:
+            raise HTTPException(
+                status_code=400,
+                detail="No selected Canvas courses available for metadata preview. Choose classes first.",
+            )
+        target_course_id = selected[0]
+
+    try:
+        return preview_student_metadata(canvas_course_id=target_course_id, limit=limit)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("/sync/runs")

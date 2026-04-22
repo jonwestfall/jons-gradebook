@@ -26,6 +26,7 @@ from app.db.models.canvas import (
     CanvasCourseSelection,
     CanvasCourseSnapshot,
     CanvasEnrollmentSnapshot,
+    CanvasStudentFieldMapping,
     CanvasSubmissionSnapshot,
     CanvasSyncRun,
     SyncStatus,
@@ -41,6 +42,13 @@ from app.db.models.rubrics import (
     RubricEvaluation,
     RubricEvaluationItem,
     RubricTemplate,
+)
+from app.db.models.student_profile_extras import (
+    AlertSeverity,
+    AlertStatus,
+    StudentAlert,
+    StudentProfileTag,
+    StudentTag,
 )
 
 __all__ = [
@@ -66,6 +74,7 @@ __all__ = [
     "AttendanceStatus",
     "CanvasSyncRun",
     "CanvasCourseSelection",
+    "CanvasStudentFieldMapping",
     "CanvasCourseSnapshot",
     "CanvasAssignmentSnapshot",
     "CanvasEnrollmentSnapshot",
@@ -82,6 +91,11 @@ __all__ = [
     "RubricCriterionType",
     "RubricEvaluation",
     "RubricEvaluationItem",
+    "StudentAlert",
+    "StudentTag",
+    "StudentProfileTag",
+    "AlertSeverity",
+    "AlertStatus",
     "StoredDocument",
     "StoredDocumentVersion",
     "DocumentType",

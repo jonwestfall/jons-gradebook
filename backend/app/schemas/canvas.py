@@ -12,3 +12,8 @@ class CanvasSyncRequest(BaseModel):
 class CanvasCourseSelectionUpdateRequest(BaseModel):
     canvas_course_ids: list[str]
     mode: str = "replace"
+
+
+class CanvasStudentFieldMappingUpdateRequest(BaseModel):
+    target_field: str
+    source_paths: list[str]

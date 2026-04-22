@@ -98,6 +98,8 @@ class StudentProfile(Base, TimestampMixin):
     enrollments = relationship("Enrollment", back_populates="student", cascade="all, delete-orphan")
     grades = relationship("GradeEntry", back_populates="student", cascade="all, delete-orphan")
     attendance_records = relationship("AttendanceRecord", back_populates="student", cascade="all, delete-orphan")
+    alerts = relationship("StudentAlert", back_populates="student", cascade="all, delete-orphan")
+    tag_links = relationship("StudentProfileTag", back_populates="student", cascade="all, delete-orphan")
 
 
 class Enrollment(Base, TimestampMixin):

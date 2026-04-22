@@ -20,6 +20,28 @@ type CanvasCourse = {
   is_selected: boolean
 }
 
+type StudentMapping = {
+  target_field: string
+  source_paths: string[]
+  default_source_paths: string[]
+}
+
+type StudentMappingResponse = {
+  mappings: StudentMapping[]
+  common_source_paths: string[]
+}
+
+type MetadataPreview = {
+  canvas_course_id: string
+  sample_count: number
+  labels: { source_path: string; sample_values: string[] }[]
+  rows: {
+    canvas_user_id: string
+    name: string
+    sample_values: Record<string, string>
+  }[]
+}
+
 function formatDate(value?: string | null): string {
   if (!value) return 'N/A'
   return new Date(value).toLocaleDateString()
@@ -29,9 +51,16 @@ export function CanvasSyncPage() {
   const [runs, setRuns] = useState<SyncRun[]>([])
   const [courses, setCourses] = useState<CanvasCourse[]>([])
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set())
+  const [mappingData, setMappingData] = useState<StudentMappingResponse | null>(null)
+  const [mappingDrafts, setMappingDrafts] = useState<Record<string, string>>({})
+  const [metadataPreview, setMetadataPreview] = useState<MetadataPreview | null>(null)
+  const [previewCourseId, setPreviewCourseId] = useState<string>('')
+
   const [loading, setLoading] = useState(false)
   const [discovering, setDiscovering] = useState(false)
   const [savingSelection, setSavingSelection] = useState(false)
+  const [savingMappingField, setSavingMappingField] = useState<string | null>(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
   const [showCoursePicker, setShowCoursePicker] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -40,6 +69,53 @@ export function CanvasSyncPage() {
   async function loadRuns() {
     const data = await api.get<SyncRun[]>('/canvas/sync/runs')
     setRuns(data)
+  }
+
+  async function loadStudentMapping() {
+    const data = await api.get<StudentMappingResponse>('/canvas/student-metadata/mapping')
+    setMappingData(data)
+    setMappingDrafts(
+      Object.fromEntries(data.mappings.map((mapping) => [mapping.target_field, mapping.source_paths.join(', ')])),
+    )
+  }
+
+  async function loadMetadataPreview(targetCourseId?: string) {
+    setPreviewLoading(true)
+    setError(null)
+    try {
+      const query = targetCourseId ? `?canvas_course_id=${encodeURIComponent(targetCourseId)}` : ''
+      const data = await api.get<MetadataPreview>(`/canvas/student-metadata/preview${query}`)
+      setMetadataPreview(data)
+      setPreviewCourseId(data.canvas_course_id)
+    } catch (err) {
+      setMetadataPreview(null)
+      setError((err as Error).message)
+    } finally {
+      setPreviewLoading(false)
+    }
+  }
+
+  async function saveStudentMapping(targetField: string) {
+    setSavingMappingField(targetField)
+    setError(null)
+    try {
+      const raw = mappingDrafts[targetField] || ''
+      const sourcePaths = raw
+        .split(',')
+        .map((value) => value.trim())
+        .filter(Boolean)
+
+      await api.put('/canvas/student-metadata/mapping', {
+        target_field: targetField,
+        source_paths: sourcePaths,
+      })
+
+      await loadStudentMapping()
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setSavingMappingField(null)
+    }
   }
 
   async function discoverCourses(showPicker = false) {
@@ -104,6 +180,8 @@ export function CanvasSyncPage() {
   useEffect(() => {
     void loadRuns()
     void discoverCourses(false)
+    void loadStudentMapping()
+    void loadMetadataPreview()
   }, [])
 
   return (
@@ -160,6 +238,104 @@ export function CanvasSyncPage() {
           </button>
         </article>
       ) : null}
+
+      <article className="card">
+        <h3>Student Metadata Mapping</h3>
+        <p>
+          Configure how Canvas student metadata maps to local student columns. Use comma-separated source paths in
+          priority order.
+        </p>
+        {mappingData ? (
+          <>
+            <p>Common source paths: {mappingData.common_source_paths.join(', ')}</p>
+            <div className="list">
+              {mappingData.mappings.map((mapping) => (
+                <div key={mapping.target_field} className="card">
+                  <strong>{mapping.target_field}</strong>
+                  <div>Default: {mapping.default_source_paths.join(', ')}</div>
+                  <input
+                    value={mappingDrafts[mapping.target_field] || ''}
+                    onChange={(event) =>
+                      setMappingDrafts((prev) => ({ ...prev, [mapping.target_field]: event.target.value }))
+                    }
+                    placeholder="user.email, user.primary_email"
+                  />
+                  <button
+                    onClick={() => void saveStudentMapping(mapping.target_field)}
+                    disabled={savingMappingField === mapping.target_field}
+                  >
+                    {savingMappingField === mapping.target_field ? 'Saving...' : 'Save Mapping'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </>
+        ) : (
+          <p>Loading mapping configuration...</p>
+        )}
+      </article>
+
+      <article className="card">
+        <h3>Canvas Metadata Preview</h3>
+        <p>
+          Preview raw metadata labels from your Canvas enrollment payload so you can choose reliable mapping paths for
+          this installation.
+        </p>
+        <div className="form">
+          <select
+            value={previewCourseId}
+            onChange={(event) => {
+              const nextCourseId = event.target.value
+              setPreviewCourseId(nextCourseId)
+            }}
+          >
+            {courses.length === 0 ? <option value="">No discovered courses</option> : null}
+            {courses.map((course) => (
+              <option key={`preview-${course.canvas_course_id}`} value={course.canvas_course_id}>
+                {course.name} ({course.canvas_course_id})
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={() => void loadMetadataPreview(previewCourseId || undefined)}
+            disabled={previewLoading || courses.length === 0}
+          >
+            {previewLoading ? 'Loading Preview...' : 'Refresh Preview'}
+          </button>
+        </div>
+        {metadataPreview ? (
+          <>
+            <p>
+              Preview course ID: <strong>{metadataPreview.canvas_course_id}</strong> | Student samples:{' '}
+              <strong>{metadataPreview.sample_count}</strong>
+            </p>
+            <div className="card" style={{ overflow: 'auto', maxHeight: '340px' }}>
+              <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 760 }}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: 'left', padding: '0.45rem' }}>Canvas Metadata Label</th>
+                    <th style={{ textAlign: 'left', padding: '0.45rem' }}>Sample Values</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {metadataPreview.labels.map((label) => (
+                    <tr key={label.source_path}>
+                      <td style={{ borderTop: '1px solid #d5c8aa', padding: '0.45rem', fontFamily: 'monospace' }}>
+                        {label.source_path}
+                      </td>
+                      <td style={{ borderTop: '1px solid #d5c8aa', padding: '0.45rem' }}>
+                        {label.sample_values.length > 0 ? label.sample_values.join(' | ') : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        ) : (
+          <p>No metadata preview loaded yet.</p>
+        )}
+      </article>
 
       {error ? <p className="error">{error}</p> : null}
 
