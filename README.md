@@ -101,3 +101,14 @@ Core V1 platform is largely in place (Canvas read sync, merged gradebook core, s
 - De-identified prompts and de-identification mapping tables are exportable/auditable by default.
 - The Alembic initial migration creates the full metadata model for rapid iteration.
 - Canvas write-back is intentionally not implemented yet, but provider boundaries are set up for V3.
+
+## Troubleshooting (Windows)
+
+- If backend fails with `env: 'sh\\r': No such file or directory`, it means a shell script has CRLF line endings.
+- This repo enforces LF for `*.sh` via `.gitattributes`, and backend image build also normalizes `/docker-entrypoint.sh`.
+- After pulling latest changes, rebuild backend image:
+
+```bash
+docker compose build --no-cache backend
+docker compose up -d
+```
