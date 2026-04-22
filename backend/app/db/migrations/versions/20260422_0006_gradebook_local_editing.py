@@ -23,23 +23,38 @@ completion_status = sa.Enum("complete", "incomplete", "missing", "excused", name
 
 def upgrade() -> None:
     bind = op.get_bind()
+    inspector = sa.inspect(bind)
     assignment_grading_type.create(bind, checkfirst=True)
     completion_status.create(bind, checkfirst=True)
 
-    op.add_column(
-        "assignments",
-        sa.Column("grading_type", assignment_grading_type, nullable=False, server_default="points"),
-    )
-    op.add_column("grade_entries", sa.Column("letter_grade", sa.String(length=16), nullable=True))
-    op.add_column("grade_entries", sa.Column("completion_status", completion_status, nullable=True))
+    assignment_columns = {column["name"] for column in inspector.get_columns("assignments")}
+    if "grading_type" not in assignment_columns:
+        op.add_column(
+            "assignments",
+            sa.Column("grading_type", assignment_grading_type, nullable=False, server_default="points"),
+        )
+        op.alter_column("assignments", "grading_type", server_default=None)
 
-    op.alter_column("assignments", "grading_type", server_default=None)
+    grade_entry_columns = {column["name"] for column in inspector.get_columns("grade_entries")}
+    if "letter_grade" not in grade_entry_columns:
+        op.add_column("grade_entries", sa.Column("letter_grade", sa.String(length=16), nullable=True))
+    if "completion_status" not in grade_entry_columns:
+        op.add_column("grade_entries", sa.Column("completion_status", completion_status, nullable=True))
 
 
 def downgrade() -> None:
-    op.drop_column("grade_entries", "completion_status")
-    op.drop_column("grade_entries", "letter_grade")
-    op.drop_column("assignments", "grading_type")
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+
+    grade_entry_columns = {column["name"] for column in inspector.get_columns("grade_entries")}
+    if "completion_status" in grade_entry_columns:
+        op.drop_column("grade_entries", "completion_status")
+    if "letter_grade" in grade_entry_columns:
+        op.drop_column("grade_entries", "letter_grade")
+
+    assignment_columns = {column["name"] for column in inspector.get_columns("assignments")}
+    if "grading_type" in assignment_columns:
+        op.drop_column("assignments", "grading_type")
 
     bind = op.get_bind()
     completion_status.drop(bind, checkfirst=True)
