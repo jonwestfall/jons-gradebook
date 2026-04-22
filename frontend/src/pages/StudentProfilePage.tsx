@@ -28,7 +28,22 @@ type Profile = {
     excused: number
     total_records: number
   }
-  courses: { course_id: number; name: string; section_name?: string | null }[]
+  courses: {
+    course_id: number
+    name: string
+    section_name?: string | null
+    totals: { earned: number; possible: number; percent?: number | null }
+    assignments: {
+      assignment_id: number
+      title: string
+      source: string
+      due_at?: string | null
+      points_possible?: number | null
+      score?: number | null
+      status: string
+      percent?: number | null
+    }[]
+  }[]
   grade_overview: {
     course_id: number
     course_name: string
@@ -189,7 +204,46 @@ export function StudentProfilePage() {
       <ul className="list">
         {profile.courses.map((course) => (
           <li key={course.course_id} className="card">
-            {course.name} ({course.section_name || 'No section'})
+            <strong>
+              {course.name} ({course.section_name || 'No section'})
+            </strong>
+            <div>
+              Course Total: {course.totals.earned}/{course.totals.possible} ({course.totals.percent ?? 'N/A'}%)
+            </div>
+            <div className="card" style={{ marginTop: '0.6rem', overflowX: 'auto' }}>
+              <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 720 }}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: 'left', padding: '0.35rem' }}>Assignment</th>
+                    <th style={{ textAlign: 'left', padding: '0.35rem' }}>Due</th>
+                    <th style={{ textAlign: 'left', padding: '0.35rem' }}>Score</th>
+                    <th style={{ textAlign: 'left', padding: '0.35rem' }}>Points</th>
+                    <th style={{ textAlign: 'left', padding: '0.35rem' }}>Percent</th>
+                    <th style={{ textAlign: 'left', padding: '0.35rem' }}>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {course.assignments.map((assignment) => (
+                    <tr key={assignment.assignment_id}>
+                      <td style={{ borderTop: '1px solid #d5c8aa', padding: '0.35rem' }}>{assignment.title}</td>
+                      <td style={{ borderTop: '1px solid #d5c8aa', padding: '0.35rem' }}>
+                        {assignment.due_at ? new Date(assignment.due_at).toLocaleDateString() : 'N/A'}
+                      </td>
+                      <td style={{ borderTop: '1px solid #d5c8aa', padding: '0.35rem' }}>
+                        {assignment.score ?? '—'}
+                      </td>
+                      <td style={{ borderTop: '1px solid #d5c8aa', padding: '0.35rem' }}>
+                        {assignment.points_possible ?? 'N/A'}
+                      </td>
+                      <td style={{ borderTop: '1px solid #d5c8aa', padding: '0.35rem' }}>
+                        {assignment.percent ?? 'N/A'}%
+                      </td>
+                      <td style={{ borderTop: '1px solid #d5c8aa', padding: '0.35rem' }}>{assignment.status}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </li>
         ))}
       </ul>

@@ -65,6 +65,7 @@ export function CanvasSyncPage() {
   const [error, setError] = useState<string | null>(null)
 
   const selectedCount = useMemo(() => courses.filter((course) => course.is_selected).length, [courses])
+  const mappingTargets = ['first_name', 'last_name', 'email', 'student_number', 'institution_name'] as const
 
   async function loadRuns() {
     const data = await api.get<SyncRun[]>('/canvas/sync/runs')
@@ -108,6 +109,32 @@ export function CanvasSyncPage() {
       await api.put('/canvas/student-metadata/mapping', {
         target_field: targetField,
         source_paths: sourcePaths,
+      })
+
+      await loadStudentMapping()
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setSavingMappingField(null)
+    }
+  }
+
+  async function applyPreviewPathToTarget(targetField: string, sourcePath: string) {
+    setSavingMappingField(targetField)
+    setError(null)
+    try {
+      const existingRaw = mappingDrafts[targetField] || ''
+      const existing = existingRaw
+        .split(',')
+        .map((value) => value.trim())
+        .filter(Boolean)
+
+      const nextPaths = [sourcePath, ...existing.filter((value) => value !== sourcePath)]
+      setMappingDrafts((prev) => ({ ...prev, [targetField]: nextPaths.join(', ') }))
+
+      await api.put('/canvas/student-metadata/mapping', {
+        target_field: targetField,
+        source_paths: nextPaths,
       })
 
       await loadStudentMapping()
@@ -315,6 +342,7 @@ export function CanvasSyncPage() {
                   <tr>
                     <th style={{ textAlign: 'left', padding: '0.45rem' }}>Canvas Metadata Label</th>
                     <th style={{ textAlign: 'left', padding: '0.45rem' }}>Sample Values</th>
+                    <th style={{ textAlign: 'left', padding: '0.45rem' }}>Quick Mapping</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -325,6 +353,20 @@ export function CanvasSyncPage() {
                       </td>
                       <td style={{ borderTop: '1px solid #d5c8aa', padding: '0.45rem' }}>
                         {label.sample_values.length > 0 ? label.sample_values.join(' | ') : '—'}
+                      </td>
+                      <td style={{ borderTop: '1px solid #d5c8aa', padding: '0.45rem' }}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+                          {mappingTargets.map((targetField) => (
+                            <button
+                              key={`${label.source_path}-${targetField}`}
+                              onClick={() => void applyPreviewPathToTarget(targetField, label.source_path)}
+                              disabled={savingMappingField === targetField}
+                              style={{ padding: '0.25rem 0.5rem', fontSize: '0.82rem' }}
+                            >
+                              {savingMappingField === targetField ? 'Saving...' : `Use for ${targetField}`}
+                            </button>
+                          ))}
+                        </div>
                       </td>
                     </tr>
                   ))}

@@ -117,6 +117,75 @@ def student_profile(student_id: int, db: Session = Depends(get_db)) -> dict:
         )
     grade_overview.sort(key=lambda row: (row["percent"] if row["percent"] is not None else 10_000))
 
+    course_ids = [enrollment.course_id for enrollment in student.enrollments]
+    assignments_by_course: dict[int, list[Assignment]] = {course_id: [] for course_id in course_ids}
+    grade_by_assignment_id: dict[int, GradeEntry] = {}
+
+    if course_ids:
+        assignments = db.scalars(
+            select(Assignment)
+            .where(Assignment.course_id.in_(course_ids))
+            .order_by(Assignment.due_at.asc().nulls_last(), Assignment.title.asc())
+        ).all()
+        for assignment in assignments:
+            assignments_by_course.setdefault(assignment.course_id, []).append(assignment)
+
+        assignment_ids = [assignment.id for assignment in assignments]
+        if assignment_ids:
+            grade_rows = db.scalars(
+                select(GradeEntry).where(
+                    GradeEntry.student_id == student_id,
+                    GradeEntry.assignment_id.in_(assignment_ids),
+                )
+            ).all()
+            grade_by_assignment_id = {grade.assignment_id: grade for grade in grade_rows}
+
+    courses_payload = []
+    for enrollment in student.enrollments:
+        course_assignments = assignments_by_course.get(enrollment.course_id, [])
+        assignment_payload = []
+        earned = 0.0
+        possible = 0.0
+        for assignment in course_assignments:
+            grade = grade_by_assignment_id.get(assignment.id)
+            score = grade.score if grade else None
+            status = grade.status.value if grade else "unsubmitted"
+            assignment_possible = assignment.points_possible
+            percent = (score / assignment_possible * 100.0) if score is not None and assignment_possible else None
+
+            if assignment_possible is not None:
+                possible += float(assignment_possible)
+                if score is not None:
+                    earned += float(score)
+
+            assignment_payload.append(
+                {
+                    "assignment_id": assignment.id,
+                    "title": assignment.title,
+                    "source": assignment.source.value,
+                    "due_at": assignment.due_at.isoformat() if assignment.due_at else None,
+                    "points_possible": assignment_possible,
+                    "score": score,
+                    "status": status,
+                    "percent": round(percent, 2) if percent is not None else None,
+                }
+            )
+
+        course_percent = (earned / possible * 100.0) if possible > 0 else None
+        courses_payload.append(
+            {
+                "course_id": enrollment.course.id,
+                "name": enrollment.course.name,
+                "section_name": enrollment.course.section_name,
+                "totals": {
+                    "earned": round(earned, 2),
+                    "possible": round(possible, 2),
+                    "percent": round(course_percent, 2) if course_percent is not None else None,
+                },
+                "assignments": assignment_payload,
+            }
+        )
+
     return {
         "student": {
             "id": student.id,
@@ -147,14 +216,7 @@ def student_profile(student_id: int, db: Session = Depends(get_db)) -> dict:
             "excused": attendance_counts.get("excused", 0),
             "total_records": sum(attendance_counts.values()),
         },
-        "courses": [
-            {
-                "course_id": enrollment.course.id,
-                "name": enrollment.course.name,
-                "section_name": enrollment.course.section_name,
-            }
-            for enrollment in student.enrollments
-        ],
+        "courses": courses_payload,
         "recent_interactions": [
             {
                 "id": interaction.id,

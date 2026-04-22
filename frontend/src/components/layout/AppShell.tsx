@@ -1,5 +1,5 @@
-import { NavLink, Outlet } from 'react-router-dom'
 import { useState } from 'react'
+import { NavLink, Outlet } from 'react-router-dom'
 
 const navItems = [
   ['/', 'Dashboard'],
@@ -23,7 +23,7 @@ export function AppShell() {
     <div className={collapsed ? 'layout sidebar-collapsed' : 'layout'}>
       <aside className="sidebar">
         <button className="sidebar-toggle" onClick={() => setCollapsed((value) => !value)}>
-          {collapsed ? 'Expand Menu' : 'Collapse Menu'}
+          {collapsed ? '=' : 'Collapse Menu'}
         </button>
         <h1>Jon&apos;s Gradebook</h1>
         <p className="subtitle">Single-user advising and grading workspace</p>
