@@ -32,3 +32,4 @@ If work is not committed yet, use `commit WORKTREE` temporarily and replace it a
 - [commit d146e49] [area: students] Added editable profile fields for first name, last name, email, and phone number.
 - [commit fb8a39f] [area: canvas-sync] Reorganized page into collapsible sections and added class picker filter/paging controls.
 - [commit fb8a39f] [area: canvas-sync] Clarified class selection actions: replace allowlist vs add-to-allowlist.
+- [commit 33c9031] [area: docs] Added V1 QA checklist and updated implementation/README docs for current V1 status tracking.
