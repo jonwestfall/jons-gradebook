@@ -1,17 +1,19 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db.models import (
     Assignment,
+    AssignmentGradingType,
     AssignmentMatchDecision,
     AssignmentMatchSuggestion,
     AssignmentSource,
     ClassSchedule,
     Course,
     CourseGradeRule,
+    GradebookCalculatedColumn,
     GradeEntry,
     GradeSource,
     GradeStatus,
@@ -23,10 +25,13 @@ from app.schemas.academic import (
     AssignmentCreate,
     AssignmentOut,
     AttachRuleRequest,
+    CalculatedColumnCreate,
+    CalculatedColumnUpdate,
     ClassScheduleCreate,
     CourseCreate,
     CourseOut,
     GradeEntryUpsert,
+    GradebookColumnReorderRequest,
     GradeRuleTemplateCreate,
     MatchBulkActionRequest,
     MeetingGenerateRequest,
@@ -66,6 +71,10 @@ def create_local_assignment(course_id: int, payload: AssignmentCreate, db: Sessi
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
 
+    next_order = int(
+        db.execute(select(func.coalesce(func.max(Assignment.display_order), 0)).where(Assignment.course_id == course_id)).scalar_one()
+    ) + 1
+
     assignment = Assignment(
         course_id=course_id,
         assignment_group_id=payload.assignment_group_id,
@@ -73,7 +82,9 @@ def create_local_assignment(course_id: int, payload: AssignmentCreate, db: Sessi
         title=payload.title,
         description=payload.description,
         due_at=payload.due_at,
-        points_possible=payload.points_possible,
+        points_possible=payload.points_possible if payload.grading_type == AssignmentGradingType.points else None,
+        grading_type=payload.grading_type,
+        display_order=next_order,
         is_archived=False,
         is_hidden=False,
     )
@@ -106,19 +117,36 @@ def upsert_assignment_grade(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail="Invalid grade status") from exc
 
+    is_canvas_assignment = assignment.source == AssignmentSource.canvas
+    grade_source = GradeSource.manual_override if is_canvas_assignment else GradeSource.local
+
+    if assignment.grading_type == AssignmentGradingType.points:
+        if payload.score is None and status == GradeStatus.graded:
+            raise HTTPException(status_code=400, detail="score is required for points grading when status is graded")
+    elif assignment.grading_type == AssignmentGradingType.letter:
+        if payload.letter_grade is None and status == GradeStatus.graded:
+            raise HTTPException(status_code=400, detail="letter_grade is required for letter grading when status is graded")
+    elif assignment.grading_type == AssignmentGradingType.completion:
+        if payload.completion_status is None:
+            raise HTTPException(status_code=400, detail="completion_status is required for completion grading")
+
     if not grade:
         grade = GradeEntry(
             assignment_id=assignment_id,
             student_id=payload.student_id,
-            source=GradeSource.local,
+            source=grade_source,
             status=status,
-            score=payload.score,
+            score=payload.score if assignment.grading_type == AssignmentGradingType.points else None,
+            letter_grade=payload.letter_grade if assignment.grading_type == AssignmentGradingType.letter else None,
+            completion_status=payload.completion_status if assignment.grading_type == AssignmentGradingType.completion else None,
         )
         db.add(grade)
     else:
-        grade.source = GradeSource.local
+        grade.source = grade_source
         grade.status = status
-        grade.score = payload.score
+        grade.score = payload.score if assignment.grading_type == AssignmentGradingType.points else None
+        grade.letter_grade = payload.letter_grade if assignment.grading_type == AssignmentGradingType.letter else None
+        grade.completion_status = payload.completion_status if assignment.grading_type == AssignmentGradingType.completion else None
 
     db.commit()
     db.refresh(grade)
@@ -127,6 +155,8 @@ def upsert_assignment_grade(
         "assignment_id": grade.assignment_id,
         "student_id": grade.student_id,
         "score": grade.score,
+        "letter_grade": grade.letter_grade,
+        "completion_status": grade.completion_status.value if grade.completion_status else None,
         "status": grade.status.value,
         "source": grade.source.value,
     }
@@ -142,6 +172,123 @@ def merged_gradebook(
         return build_merged_gradebook(db, course_id=course_id, include_hidden=include_hidden)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get("/{course_id}/calculated-columns")
+def list_calculated_columns(course_id: int, db: Session = Depends(get_db)) -> list[dict]:
+    columns = db.scalars(
+        select(GradebookCalculatedColumn)
+        .where(GradebookCalculatedColumn.course_id == course_id)
+        .order_by(GradebookCalculatedColumn.display_order.asc(), GradebookCalculatedColumn.id.asc())
+    ).all()
+    return [
+        {
+            "id": column.id,
+            "course_id": column.course_id,
+            "name": column.name,
+            "operation": column.operation.value,
+            "assignment_ids": column.assignment_ids,
+            "display_order": column.display_order,
+        }
+        for column in columns
+    ]
+
+
+@router.post("/{course_id}/calculated-columns")
+def create_calculated_column(course_id: int, payload: CalculatedColumnCreate, db: Session = Depends(get_db)) -> dict:
+    course = db.get(Course, course_id)
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+
+    next_order = int(
+        db.execute(
+            select(func.coalesce(func.max(GradebookCalculatedColumn.display_order), 0)).where(
+                GradebookCalculatedColumn.course_id == course_id
+            )
+        ).scalar_one()
+    ) + 1
+
+    column = GradebookCalculatedColumn(
+        course_id=course_id,
+        name=payload.name.strip(),
+        operation=payload.operation,
+        assignment_ids=payload.assignment_ids,
+        display_order=next_order,
+    )
+    db.add(column)
+    db.commit()
+    db.refresh(column)
+    return {
+        "id": column.id,
+        "course_id": column.course_id,
+        "name": column.name,
+        "operation": column.operation.value,
+        "assignment_ids": column.assignment_ids,
+        "display_order": column.display_order,
+    }
+
+
+@router.patch("/{course_id}/calculated-columns/{column_id}")
+def update_calculated_column(
+    course_id: int, column_id: int, payload: CalculatedColumnUpdate, db: Session = Depends(get_db)
+) -> dict:
+    column = db.get(GradebookCalculatedColumn, column_id)
+    if not column or column.course_id != course_id:
+        raise HTTPException(status_code=404, detail="Calculated column not found")
+
+    if payload.name is not None:
+        column.name = payload.name.strip()
+    if payload.operation is not None:
+        column.operation = payload.operation
+    if payload.assignment_ids is not None:
+        column.assignment_ids = payload.assignment_ids
+
+    db.commit()
+    db.refresh(column)
+    return {
+        "id": column.id,
+        "course_id": column.course_id,
+        "name": column.name,
+        "operation": column.operation.value,
+        "assignment_ids": column.assignment_ids,
+        "display_order": column.display_order,
+    }
+
+
+@router.delete("/{course_id}/calculated-columns/{column_id}")
+def delete_calculated_column(course_id: int, column_id: int, db: Session = Depends(get_db)) -> dict:
+    column = db.get(GradebookCalculatedColumn, column_id)
+    if not column or column.course_id != course_id:
+        raise HTTPException(status_code=404, detail="Calculated column not found")
+    db.delete(column)
+    db.commit()
+    return {"deleted": True, "column_id": column_id}
+
+
+@router.post("/{course_id}/gradebook/columns/reorder")
+def reorder_gradebook_columns(course_id: int, payload: GradebookColumnReorderRequest, db: Session = Depends(get_db)) -> dict:
+    course = db.get(Course, course_id)
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+
+    if payload.assignment_order:
+        assignments = db.scalars(select(Assignment).where(Assignment.course_id == course_id)).all()
+        assignment_map = {assignment.id: assignment for assignment in assignments}
+        for idx, assignment_id in enumerate(payload.assignment_order, start=1):
+            assignment = assignment_map.get(assignment_id)
+            if assignment:
+                assignment.display_order = idx
+
+    if payload.calculated_column_order:
+        columns = db.scalars(select(GradebookCalculatedColumn).where(GradebookCalculatedColumn.course_id == course_id)).all()
+        column_map = {column.id: column for column in columns}
+        for idx, column_id in enumerate(payload.calculated_column_order, start=1):
+            column = column_map.get(column_id)
+            if column:
+                column.display_order = idx
+
+    db.commit()
+    return {"updated": True}
 
 
 @router.post("/{course_id}/matches/suggest")

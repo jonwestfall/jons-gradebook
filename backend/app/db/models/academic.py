@@ -34,6 +34,18 @@ class AssignmentSource(str, enum.Enum):
     local = "local"
 
 
+class AssignmentGradingType(str, enum.Enum):
+    points = "points"
+    letter = "letter"
+    completion = "completion"
+
+
+class CalculatedColumnOperation(str, enum.Enum):
+    average_percent = "average_percent"
+    sum_points = "sum_points"
+    completion_rate = "completion_rate"
+
+
 class MatchStatus(str, enum.Enum):
     suggested = "suggested"
     confirmed = "confirmed"
@@ -56,6 +68,13 @@ class GradeStatus(str, enum.Enum):
     missing = "missing"
     excused = "excused"
     unsubmitted = "unsubmitted"
+
+
+class CompletionStatus(str, enum.Enum):
+    complete = "complete"
+    incomplete = "incomplete"
+    missing = "missing"
+    excused = "excused"
 
 
 class RuleType(str, enum.Enum):
@@ -83,6 +102,7 @@ class Course(Base, TimestampMixin):
     enrollments = relationship("Enrollment", back_populates="course", cascade="all, delete-orphan")
     assignment_groups = relationship("AssignmentGroup", back_populates="course", cascade="all, delete-orphan")
     assignments = relationship("Assignment", back_populates="course", cascade="all, delete-orphan")
+    calculated_columns = relationship("GradebookCalculatedColumn", back_populates="course", cascade="all, delete-orphan")
     grade_rules = relationship("CourseGradeRule", back_populates="course", cascade="all, delete-orphan")
     schedules = relationship("ClassSchedule", back_populates="course", cascade="all, delete-orphan")
     meetings = relationship("ClassMeeting", back_populates="course", cascade="all, delete-orphan")
@@ -146,6 +166,10 @@ class Assignment(Base, TimestampMixin):
     description: Mapped[Optional[str]] = mapped_column(Text)
     due_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     points_possible: Mapped[Optional[float]] = mapped_column(Float)
+    grading_type: Mapped[AssignmentGradingType] = mapped_column(
+        Enum(AssignmentGradingType), nullable=False, default=AssignmentGradingType.points
+    )
+    display_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     is_archived: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     is_hidden: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     hidden_reason: Mapped[Optional[str]] = mapped_column(String(255))
@@ -205,11 +229,28 @@ class GradeEntry(Base, TimestampMixin):
     source: Mapped[GradeSource] = mapped_column(Enum(GradeSource), nullable=False)
     status: Mapped[GradeStatus] = mapped_column(Enum(GradeStatus), nullable=False, default=GradeStatus.unsubmitted)
     score: Mapped[Optional[float]] = mapped_column(Float)
+    letter_grade: Mapped[Optional[str]] = mapped_column(String(16))
+    completion_status: Mapped[Optional[CompletionStatus]] = mapped_column(Enum(CompletionStatus))
     submitted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     snapshot_run_id: Mapped[Optional[int]] = mapped_column(ForeignKey("canvas_sync_runs.id", ondelete="SET NULL"))
 
     assignment = relationship("Assignment", back_populates="grade_entries")
     student = relationship("StudentProfile", back_populates="grades")
+
+
+class GradebookCalculatedColumn(Base, TimestampMixin):
+    __tablename__ = "gradebook_calculated_columns"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    course_id: Mapped[int] = mapped_column(ForeignKey("courses.id", ondelete="CASCADE"), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    operation: Mapped[CalculatedColumnOperation] = mapped_column(
+        Enum(CalculatedColumnOperation, native_enum=False), nullable=False
+    )
+    assignment_ids: Mapped[list[int]] = mapped_column(JSON, nullable=False, default=list)
+    display_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    course = relationship("Course", back_populates="calculated_columns")
 
 
 class GradeRuleTemplate(Base, TimestampMixin):

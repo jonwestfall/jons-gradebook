@@ -8,10 +8,12 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.db.models import (
     Assignment,
+    AssignmentGradingType,
     Course,
     CourseGradeRule,
     Enrollment,
     EnrollmentRole,
+    GradebookCalculatedColumn,
     GradeEntry,
     GradeStatus,
     RuleType,
@@ -33,6 +35,7 @@ def build_merged_gradebook(db: Session, course_id: int, include_hidden: bool = F
         .where(Course.id == course_id)
         .options(
             joinedload(Course.assignments),
+            joinedload(Course.calculated_columns),
             joinedload(Course.enrollments).joinedload(Enrollment.student),
             joinedload(Course.grade_rules).joinedload(CourseGradeRule.template),
         )
@@ -41,6 +44,8 @@ def build_merged_gradebook(db: Session, course_id: int, include_hidden: bool = F
         raise ValueError("Course not found")
 
     assignments = [a for a in course.assignments if not a.is_archived and (include_hidden or not a.is_hidden)]
+    assignments.sort(key=lambda item: (item.display_order, item.id))
+    calculated_columns = sorted(course.calculated_columns, key=lambda item: (item.display_order, item.id))
     assignment_ids = [a.id for a in assignments]
 
     grade_entries = db.scalars(select(GradeEntry).where(GradeEntry.assignment_id.in_(assignment_ids))).all() if assignment_ids else []
@@ -88,10 +93,12 @@ def build_merged_gradebook(db: Session, course_id: int, include_hidden: bool = F
         for assignment in assignments:
             grade = by_student_assignment.get((student.id, assignment.id))
             score = grade.score if grade else None
+            letter_grade = grade.letter_grade if grade else None
+            completion_status = grade.completion_status.value if grade and grade.completion_status else None
             status = grade.status.value if grade else GradeStatus.unsubmitted.value
             dropped = assignment.id in dropped_ids
 
-            if assignment.points_possible and not dropped:
+            if assignment.grading_type == AssignmentGradingType.points and assignment.points_possible and not dropped:
                 total_points += assignment.points_possible
                 if score is not None:
                     total_earned += score
@@ -107,9 +114,93 @@ def build_merged_gradebook(db: Session, course_id: int, include_hidden: bool = F
                     "source": assignment.source.value,
                     "due_at": assignment.due_at.isoformat() if assignment.due_at else None,
                     "points_possible": assignment.points_possible,
+                    "grading_type": assignment.grading_type.value,
                     "status": status,
                     "score": score,
+                    "letter_grade": letter_grade,
+                    "completion_status": completion_status,
+                    "grade_source": grade.source.value if grade else None,
+                    "is_out_of_sync": bool(
+                        assignment.source.value == "canvas"
+                        and grade is not None
+                        and grade.source.value in {"local", "manual_override"}
+                    ),
                     "dropped_by_rule": dropped,
+                }
+            )
+
+        calculated_values: list[dict[str, Any]] = []
+        assignment_map = {assignment.id: assignment for assignment in assignments}
+        payload_map = {item["assignment_id"]: item for item in assignments_payload}
+        for column in calculated_columns:
+            selected_ids = [assignment_id for assignment_id in column.assignment_ids if assignment_id in assignment_map]
+            value: float | None = None
+            display: str = "N/A"
+
+            if column.operation.value == "sum_points":
+                total = 0.0
+                matched = False
+                for assignment_id in selected_ids:
+                    assignment = assignment_map[assignment_id]
+                    if assignment.grading_type != AssignmentGradingType.points:
+                        continue
+                    score = payload_map.get(assignment_id, {}).get("score")
+                    if score is not None:
+                        total += float(score)
+                        matched = True
+                if matched:
+                    value = round(total, 2)
+                    display = str(value)
+
+            elif column.operation.value == "average_percent":
+                percents: list[float] = []
+                for assignment_id in selected_ids:
+                    assignment = assignment_map[assignment_id]
+                    payload_item = payload_map.get(assignment_id, {})
+                    if assignment.grading_type == AssignmentGradingType.points:
+                        score = payload_item.get("score")
+                        points_possible = payload_item.get("points_possible")
+                        if score is not None and points_possible:
+                            percents.append(float(score) / float(points_possible) * 100.0)
+                    elif assignment.grading_type == AssignmentGradingType.letter:
+                        letter = (payload_item.get("letter_grade") or "").upper().strip()
+                        mapping = {"A+": 100, "A": 95, "A-": 90, "B+": 88, "B": 85, "B-": 80, "C+": 78, "C": 75, "C-": 70, "D+": 68, "D": 65, "D-": 60, "F": 50}
+                        if letter in mapping:
+                            percents.append(float(mapping[letter]))
+                    else:
+                        completion = payload_item.get("completion_status")
+                        if completion == "complete":
+                            percents.append(100.0)
+                        elif completion in {"incomplete", "missing"}:
+                            percents.append(0.0)
+                if percents:
+                    value = round(sum(percents) / len(percents), 2)
+                    display = f"{value}%"
+
+            elif column.operation.value == "completion_rate":
+                complete = 0
+                eligible = 0
+                for assignment_id in selected_ids:
+                    assignment = assignment_map[assignment_id]
+                    if assignment.grading_type != AssignmentGradingType.completion:
+                        continue
+                    completion = payload_map.get(assignment_id, {}).get("completion_status")
+                    if completion is None:
+                        continue
+                    eligible += 1
+                    if completion == "complete":
+                        complete += 1
+                if eligible > 0:
+                    value = round((complete / eligible) * 100.0, 2)
+                    display = f"{value}%"
+
+            calculated_values.append(
+                {
+                    "column_id": column.id,
+                    "name": column.name,
+                    "operation": column.operation.value,
+                    "value": value,
+                    "display": display,
                 }
             )
 
@@ -132,6 +223,7 @@ def build_merged_gradebook(db: Session, course_id: int, include_hidden: bool = F
                     "percent": round(percentage, 2) if percentage is not None else None,
                 },
                 "warnings": warnings,
+                "calculated_values": calculated_values,
             }
         )
 
@@ -148,11 +240,22 @@ def build_merged_gradebook(db: Session, course_id: int, include_hidden: bool = F
                 "source": assignment.source.value,
                 "due_at": assignment.due_at.isoformat() if assignment.due_at else None,
                 "points_possible": assignment.points_possible,
+                "grading_type": assignment.grading_type.value,
                 "assignment_group_id": assignment.assignment_group_id,
                 "is_hidden": assignment.is_hidden,
                 "is_archived": assignment.is_archived,
             }
             for assignment in assignments
+        ],
+        "calculated_columns": [
+            {
+                "id": column.id,
+                "name": column.name,
+                "operation": column.operation.value,
+                "assignment_ids": column.assignment_ids,
+                "display_order": column.display_order,
+            }
+            for column in calculated_columns
         ],
         "students": students_payload,
         "rules_applied": rule_config,

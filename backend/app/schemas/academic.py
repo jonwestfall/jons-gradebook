@@ -3,7 +3,13 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.db.models import AssignmentSource, RuleType
+from app.db.models import (
+    AssignmentGradingType,
+    AssignmentSource,
+    CalculatedColumnOperation,
+    CompletionStatus,
+    RuleType,
+)
 
 
 class CourseCreate(BaseModel):
@@ -29,6 +35,7 @@ class AssignmentCreate(BaseModel):
     due_at: datetime | None = None
     points_possible: float | None = None
     source: AssignmentSource = AssignmentSource.local
+    grading_type: AssignmentGradingType = AssignmentGradingType.points
 
 
 class AssignmentOut(BaseModel):
@@ -40,6 +47,7 @@ class AssignmentOut(BaseModel):
     source: AssignmentSource
     due_at: datetime | None
     points_possible: float | None
+    grading_type: AssignmentGradingType
     is_archived: bool
     is_hidden: bool
 
@@ -47,6 +55,8 @@ class AssignmentOut(BaseModel):
 class GradeEntryUpsert(BaseModel):
     student_id: int
     score: float | None = None
+    letter_grade: str | None = None
+    completion_status: CompletionStatus | None = None
     status: str = Field(default="graded")
 
 
@@ -79,3 +89,20 @@ class MatchBulkActionRequest(BaseModel):
     suggestion_ids: list[int] = Field(min_length=1)
     action: Literal["confirm_canvas", "reject"]
     note: str | None = None
+
+
+class CalculatedColumnCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=255)
+    operation: CalculatedColumnOperation
+    assignment_ids: list[int] = Field(default_factory=list)
+
+
+class CalculatedColumnUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+    operation: CalculatedColumnOperation | None = None
+    assignment_ids: list[int] | None = None
+
+
+class GradebookColumnReorderRequest(BaseModel):
+    assignment_order: list[int] = Field(default_factory=list)
+    calculated_column_order: list[int] = Field(default_factory=list)

@@ -480,11 +480,29 @@ def run_canvas_sync(
                         db.flush()
                         submission_action = CanvasSyncEventAction.created
                     else:
+                        if grade.source in {GradeSource.local, GradeSource.manual_override}:
+                            _add_event(
+                                db,
+                                run_id=run.id,
+                                entity_type=CanvasSyncEntityType.submission,
+                                action=CanvasSyncEventAction.unchanged,
+                                canvas_course_id=canvas_course_id,
+                                canvas_item_id=f"{canvas_assignment_id}:{canvas_user_id}",
+                                local_item_id=grade.id,
+                                detail={
+                                    "assignment_id": assignment.id,
+                                    "student_id": student.id,
+                                    "reason": "Local override retained; Canvas value not applied",
+                                },
+                            )
+                            continue
                         if grade.score == score and grade.status == status:
                             continue
                         grade.source = GradeSource.canvas
                         grade.status = status
                         grade.score = score
+                        grade.letter_grade = None
+                        grade.completion_status = None
                         grade.submitted_at = _parse_datetime(submission_payload.get("submitted_at"))
                         grade.snapshot_run_id = run.id
 
