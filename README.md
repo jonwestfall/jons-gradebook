@@ -74,6 +74,21 @@ npm run dev
 
 All endpoints are under `/api/v1`.
 
+## Project Docs
+
+- Phased implementation plan: `docs/PHASED_IMPLEMENTATION_PLAN.md`
+- Running changelog (commit-tied): `docs/CHANGELOG.md`
+- V1 QA checklist + execution template: `docs/V1_QA_CHECKLIST.md`
+
+## V1 Status (Quick Reminder)
+
+Core V1 platform is largely in place (Canvas read sync, merged gradebook core, student/advising/attendance/interactions, metadata mapping, encryption model, and manual backup + restore preflight). The primary remaining V1 work is:
+
+- backup completion (scheduled backups + full restore execution flow from one artifact)
+- gradebook workflow finishing (assignment match queue UI + Canvas-authoritative decision history UI)
+- Canvas sync hardening polish (deleted-item edge cases + audit readability polish)
+- final V1 reliability gate (tests, migration checks, end-to-end smoke runbook)
+
 ## Notes
 
 - V1 is trusted single-user/no-login by design; there is no multi-user auth subsystem yet.

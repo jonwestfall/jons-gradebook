@@ -3,36 +3,64 @@
 ## Progress Snapshot (Updated 2026-04-22)
 
 ### Recently Completed
-- Canvas course discovery + selected-course sync flow (persistent allowlist + per-run selection mode)
-- Canvas student metadata mapping + metadata preview UI
-- Merged gradebook sorting/search controls with last-name default student sort
-- Student profile assignment drill-down with per-assignment percent
-- Interactions targeting UX (single student, course cohort, all advisees) + profile-level advisee tagging
-- Manual encrypted backup creation endpoint
+- Canvas sync:
+  - course discovery + selected-course sync flow (persistent allowlist + per-run selection mode)
+  - student metadata mapping + metadata preview UI
+  - run event pagination and event filtering
+  - Canvas Sync UI reorganization with collapsible sections, course quick filter, term filter, and paging
+  - clearer class selection actions (`Review / Replace Selection` vs `Discover + Add More Classes`)
+- Gradebook:
+  - merged gradebook sorting/search controls with last-name default student sort
+  - local-first gradebook foundations (points, letter, completion grading modes)
+  - completion quick-edit support and 4-state keyboard cycle (Complete -> Incomplete -> Missing -> Excused)
+  - right-side collapsible grade details pane + editor options toggles
+  - drag reorder support for gradebook columns
+- Students:
+  - student profile assignment drill-down with per-assignment percent
+  - Students page converted from cards to searchable/sortable grid list
+  - student list filters: all / in classes / advisees
+  - student profile editor fields for first name, last name, email, phone number
+- Interactions and advising:
+  - targeting UX (single student, course cohort, all advisees)
+  - profile-level advisee tagging
+- Backup:
+  - manual encrypted backup creation endpoint
+  - restore preflight API + typed restore safeguard in Settings
+- Documentation:
+  - running commit-linked changelog
+  - V1 QA checklist with repeatable test instructions
 
-### In Progress Now
-- Backup completion:
-  - scheduled backup job wiring
-  - restore API from one artifact
-  - backup inspection + restore operations UI in Settings page
-  - typed restore confirmation safeguard
-- Canvas sync hardening:
-  - explicit changed/deleted item event logging
-  - per-run audit trail enrichment
-  - run event pagination + action/entity filtering
-  - deleted-item visibility guidance in audit UI
-- Gradebook workflow UX:
-  - assignment match queue approve/reject/confidence workflow
-  - bulk approve/reject actions
+### V1 Delivery Checklist
+
+#### Complete
+- Trusted single-user/no-login architecture
+- Core domain model + Alembic migrations
+- Dockerized stack
+- Read-only Canvas sync (manual + scheduled) with selected-course management
+- Historical Canvas snapshots + per-run sync events
+- Merged gradebook core with Canvas + local data
+- Student profile core, advising core, attendance core, interactions core
+- Student metadata mapping workflow
+- Encrypted-at-rest approach for V1:
+  - field-level encrypted sensitive columns
+  - encrypted file blobs
+- Manual backup creation and restore preflight UX
+
+#### Remaining for V1
+- Backup/restore completion:
+  - full restore execution workflow from one artifact in UI/API
+  - scheduled backup automation
+  - operator restore runbook + full end-to-end validation in Docker
+- Gradebook workflow finishing:
+  - assignment match queue UI (approve/reject/confidence and bulk actions)
   - Canvas-authoritative decision history UI
-
-### Remaining for V1 (High Priority)
-- Full restore workflow validation in live Docker environment and operator runbook from a single backup artifact
-- Backup restore preflight summary polish (clear diff between current state and artifact before execution)
-- Canvas sync deleted-item handling polish for enrollments/submissions edge cases
-- Canvas import audit UI refinements (friendlier diff presentation for all event types)
-- Gradebook/local-first editing UX completion (inline editing + conflict guidance)
-- Final V1 reliability/test pass (API/service tests + migration verification + smoke checklist)
+  - final polish of local/Canvas conflict guidance text and affordances
+- Canvas sync hardening polish:
+  - deleted-item edge-case handling validation (especially enrollments/submissions)
+  - audit trail readability polish across event types
+- V1 quality gate:
+  - final reliability sweep (migrations, API smoke, scheduler behavior)
+  - test/backfill checklist for critical flows
 
 ## Phase 1: Foundation (Core System + V1 Non-Negotiables)
 
