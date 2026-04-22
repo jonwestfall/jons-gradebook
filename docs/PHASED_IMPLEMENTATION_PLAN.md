@@ -2,6 +2,10 @@
 
 ## Progress Snapshot (Updated 2026-04-22)
 
+### Phase Status
+- V1: complete (accepted baseline)
+- Active phase: V2 Workflow Hardening
+
 ### Recently Completed
 - Canvas sync:
   - course discovery + selected-course sync flow (persistent allowlist + per-run selection mode)
@@ -46,21 +50,25 @@
   - encrypted file blobs
 - Manual backup creation and restore preflight UX
 
-#### Remaining for V1
-- Backup/restore completion:
+#### V1 Sign-Off Notes
+- V1 is marked complete and frozen as the release baseline.
+- Any remaining polish from prior notes is now tracked as V2 work unless treated as a hotfix.
+
+### V2 Kickoff Priorities (Now Active)
+- Backup/restore hardening:
   - full restore execution workflow from one artifact in UI/API
   - scheduled backup automation
   - operator restore runbook + full end-to-end validation in Docker
-- Gradebook workflow finishing:
+- Gradebook workflow hardening:
   - assignment match queue UI (approve/reject/confidence and bulk actions)
   - Canvas-authoritative decision history UI
-  - final polish of local/Canvas conflict guidance text and affordances
-- Canvas sync hardening polish:
+  - conflict guidance polish for local-vs-Canvas edits
+- Canvas sync hardening:
   - deleted-item edge-case handling validation (especially enrollments/submissions)
   - audit trail readability polish across event types
-- V1 quality gate:
-  - final reliability sweep (migrations, API smoke, scheduler behavior)
-  - test/backfill checklist for critical flows
+- Reliability + quality gates:
+  - migration/API/scheduler reliability sweep
+  - expanded tests and critical-flow regression checklist
 
 ## Phase 1: Foundation (Core System + V1 Non-Negotiables)
 

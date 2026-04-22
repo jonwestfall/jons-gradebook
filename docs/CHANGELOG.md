@@ -33,3 +33,4 @@ If work is not committed yet, use `commit WORKTREE` temporarily and replace it a
 - [commit fb8a39f] [area: canvas-sync] Reorganized page into collapsible sections and added class picker filter/paging controls.
 - [commit fb8a39f] [area: canvas-sync] Clarified class selection actions: replace allowlist vs add-to-allowlist.
 - [commit 33c9031] [area: docs] Added V1 QA checklist and updated implementation/README docs for current V1 status tracking.
+- [commit WORKTREE] [area: docs] Marked V1 complete and set V2 workflow hardening as active phase in plan/README.

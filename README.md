@@ -82,12 +82,14 @@ All endpoints are under `/api/v1`.
 
 ## V1 Status (Quick Reminder)
 
-Core V1 platform is largely in place (Canvas read sync, merged gradebook core, student/advising/attendance/interactions, metadata mapping, encryption model, and manual backup + restore preflight). The primary remaining V1 work is:
+V1 is marked complete and accepted as the baseline release.
+
+Current focus has moved to V2 workflow hardening:
 
 - backup completion (scheduled backups + full restore execution flow from one artifact)
-- gradebook workflow finishing (assignment match queue UI + Canvas-authoritative decision history UI)
-- Canvas sync hardening polish (deleted-item edge cases + audit readability polish)
-- final V1 reliability gate (tests, migration checks, end-to-end smoke runbook)
+- gradebook workflow hardening (assignment match queue UI + Canvas-authoritative decision history UI)
+- Canvas sync hardening polish (deleted-item edge cases + audit readability)
+- expanded reliability/test gates (migrations, scheduler, critical flow regressions)
 
 ## Notes
 

@@ -14,19 +14,19 @@ Use this checklist to validate V1 end-to-end before release or major merge.
 - [X] `docker compose up --build -d` completes without container crash loops.
 - [X] `docker compose ps` shows `db`, `backend`, `frontend` healthy/up.
 - [X] App loads at `http://localhost:8080` without 502/blank page.
-- [ ] Backend docs load at `http://localhost:8000/docs`.
-- [ ] No migration errors in `docker compose logs backend`.
+- [X] Backend docs load at `http://localhost:8000/docs`.
+- [X] No migration errors in `docker compose logs backend`.
 
 ## 2) Canvas Sync
 
 ### 2.1 Course Discovery + Selection UX
-- [ ] Open **Canvas Sync** page successfully.
-- [ ] Click `Review / Replace Selection` and verify course picker opens.
-- [ ] Course picker filters work:
-  - [ ] keyword filter (title/code/term/ID)
-  - [ ] term filter
-  - [ ] paging next/previous
-- [ ] `Save Exact Selection (Replace)` replaces allowlist as expected.
+- [X] Open **Canvas Sync** page successfully.
+- [X] Click `Review / Replace Selection` and verify course picker opens.
+- [X] Course picker filters work:
+  - [X] keyword filter (title/code/term/ID)
+  - [X] term filter
+  - [X] paging next/previous
+- [X] `Save Exact Selection (Replace)` replaces allowlist as expected.
 - [ ] `Discover + Add More Classes` mode opens and explains additive behavior.
 - [ ] `Add Checked Classes (Keep Existing)` preserves existing selections and adds checked courses.
 
