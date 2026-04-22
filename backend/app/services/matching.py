@@ -9,8 +9,10 @@ from sqlalchemy.orm import Session
 
 from app.db.models import (
     Assignment,
+    AssignmentMatchDecision,
     AssignmentMatchSuggestion,
     AssignmentSource,
+    MatchDecisionAction,
     MatchStatus,
 )
 
@@ -68,6 +70,9 @@ def suggest_matches_for_course(db: Session, course_id: int, threshold: float = 0
                 existing.rationale = (
                     f"Name={name_score:.2f}; DueDate={due_date_score:.2f}; Points={points_score:.2f}"
                 )
+                if existing.status in {MatchStatus.rejected, MatchStatus.confirmed}:
+                    # Keep prior decision visible while allowing recalculated confidence.
+                    pass
                 suggestions.append(existing)
             else:
                 suggestion = AssignmentMatchSuggestion(
@@ -91,6 +96,17 @@ def suggest_matches_for_course(db: Session, course_id: int, threshold: float = 0
     return suggestions
 
 
+def _log_decision(db: Session, suggestion: AssignmentMatchSuggestion, action: MatchDecisionAction, note: str | None = None) -> None:
+    db.add(
+        AssignmentMatchDecision(
+            suggestion_id=suggestion.id,
+            course_id=suggestion.course_id,
+            action=action,
+            note=note,
+        )
+    )
+
+
 def confirm_canvas_authoritative(db: Session, suggestion_id: int) -> AssignmentMatchSuggestion:
     suggestion = db.get(AssignmentMatchSuggestion, suggestion_id)
     if not suggestion:
@@ -101,6 +117,21 @@ def confirm_canvas_authoritative(db: Session, suggestion_id: int) -> AssignmentM
     local_assignment.is_archived = True
     local_assignment.is_hidden = True
     local_assignment.hidden_reason = "Canvas authoritative match confirmed"
+
+    _log_decision(db, suggestion, MatchDecisionAction.confirm_canvas)
+
+    db.commit()
+    db.refresh(suggestion)
+    return suggestion
+
+
+def reject_match_suggestion(db: Session, suggestion_id: int, note: str | None = None) -> AssignmentMatchSuggestion:
+    suggestion = db.get(AssignmentMatchSuggestion, suggestion_id)
+    if not suggestion:
+        raise ValueError("Suggestion not found")
+
+    suggestion.status = MatchStatus.rejected
+    _log_decision(db, suggestion, MatchDecisionAction.reject, note=note)
 
     db.commit()
     db.refresh(suggestion)

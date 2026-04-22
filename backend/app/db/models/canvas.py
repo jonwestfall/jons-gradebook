@@ -21,6 +21,20 @@ class SyncStatus(str, enum.Enum):
     failed = "failed"
 
 
+class CanvasSyncEntityType(str, enum.Enum):
+    course = "course"
+    enrollment = "enrollment"
+    assignment = "assignment"
+    submission = "submission"
+
+
+class CanvasSyncEventAction(str, enum.Enum):
+    created = "created"
+    updated = "updated"
+    deleted = "deleted"
+    unchanged = "unchanged"
+
+
 class CanvasSyncRun(Base, TimestampMixin):
     __tablename__ = "canvas_sync_runs"
 
@@ -42,6 +56,7 @@ class CanvasSyncRun(Base, TimestampMixin):
     submission_snapshots = relationship(
         "CanvasSubmissionSnapshot", back_populates="sync_run", cascade="all, delete-orphan"
     )
+    events = relationship("CanvasSyncEvent", back_populates="sync_run", cascade="all, delete-orphan")
 
 
 class CanvasCourseSelection(Base, TimestampMixin):
@@ -120,3 +135,18 @@ class CanvasSubmissionSnapshot(Base):
     payload: Mapped[dict] = mapped_column(JSON, nullable=False)
 
     sync_run = relationship("CanvasSyncRun", back_populates="submission_snapshots")
+
+
+class CanvasSyncEvent(Base, TimestampMixin):
+    __tablename__ = "canvas_sync_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    sync_run_id: Mapped[int] = mapped_column(ForeignKey("canvas_sync_runs.id", ondelete="CASCADE"), nullable=False)
+    entity_type: Mapped[CanvasSyncEntityType] = mapped_column(Enum(CanvasSyncEntityType), nullable=False)
+    action: Mapped[CanvasSyncEventAction] = mapped_column(Enum(CanvasSyncEventAction), nullable=False)
+    canvas_course_id: Mapped[Optional[str]] = mapped_column(String(64), index=True)
+    canvas_item_id: Mapped[Optional[str]] = mapped_column(String(64), index=True)
+    local_item_id: Mapped[Optional[int]] = mapped_column(Integer, index=True)
+    detail: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+
+    sync_run = relationship("CanvasSyncRun", back_populates="events")

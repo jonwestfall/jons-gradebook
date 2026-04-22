@@ -1,5 +1,39 @@
 # Phased Implementation Plan (Revised & Complete)
 
+## Progress Snapshot (Updated 2026-04-22)
+
+### Recently Completed
+- Canvas course discovery + selected-course sync flow (persistent allowlist + per-run selection mode)
+- Canvas student metadata mapping + metadata preview UI
+- Merged gradebook sorting/search controls with last-name default student sort
+- Student profile assignment drill-down with per-assignment percent
+- Interactions targeting UX (single student, course cohort, all advisees) + profile-level advisee tagging
+- Manual encrypted backup creation endpoint
+
+### In Progress Now
+- Backup completion:
+  - scheduled backup job wiring
+  - restore API from one artifact
+  - backup inspection + restore operations UI in Settings page
+  - typed restore confirmation safeguard
+- Canvas sync hardening:
+  - explicit changed/deleted item event logging
+  - per-run audit trail enrichment
+  - run event pagination + action/entity filtering
+  - deleted-item visibility guidance in audit UI
+- Gradebook workflow UX:
+  - assignment match queue approve/reject/confidence workflow
+  - bulk approve/reject actions
+  - Canvas-authoritative decision history UI
+
+### Remaining for V1 (High Priority)
+- Full restore workflow validation in live Docker environment and operator runbook from a single backup artifact
+- Backup restore preflight summary polish (clear diff between current state and artifact before execution)
+- Canvas sync deleted-item handling polish for enrollments/submissions edge cases
+- Canvas import audit UI refinements (friendlier diff presentation for all event types)
+- Gradebook/local-first editing UX completion (inline editing + conflict guidance)
+- Final V1 reliability/test pass (API/service tests + migration verification + smoke checklist)
+
 ## Phase 1: Foundation (Core System + V1 Non-Negotiables)
 
 ### Confirmed Planning Decisions

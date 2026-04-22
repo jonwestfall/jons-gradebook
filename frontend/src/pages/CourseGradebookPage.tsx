@@ -28,6 +28,29 @@ type GradebookPayload = {
   }[]
 }
 
+type MatchSuggestion = {
+  id: number
+  canvas_assignment_title?: string | null
+  local_assignment_title?: string | null
+  confidence: number
+  name_score: number
+  due_date_score: number
+  points_score: number
+  status: 'suggested' | 'confirmed' | 'rejected'
+  rationale?: string | null
+  updated_at: string
+}
+
+type MatchDecision = {
+  id: number
+  suggestion_id: number
+  action: string
+  note?: string | null
+  created_at: string
+  canvas_assignment_title?: string | null
+  local_assignment_title?: string | null
+}
+
 function displayScore(entry?: StudentAssignment): string {
   if (!entry) return '—'
   if (entry.score !== null && entry.score !== undefined) return String(entry.score)
@@ -46,14 +69,93 @@ export function CourseGradebookPage() {
   const [rowSortColumn, setRowSortColumn] = useState<string>('student_lastname')
   const [rowSortDirection, setRowSortDirection] = useState<'asc' | 'desc'>('asc')
   const [assignmentSort, setAssignmentSort] = useState<'title_asc' | 'title_desc' | 'due_asc' | 'due_desc' | 'points_desc' | 'points_asc'>('title_asc')
+  const [suggestions, setSuggestions] = useState<MatchSuggestion[]>([])
+  const [decisions, setDecisions] = useState<MatchDecision[]>([])
+  const [matchStatusFilter, setMatchStatusFilter] = useState<'all' | 'suggested' | 'confirmed' | 'rejected'>('all')
+  const [matchBusy, setMatchBusy] = useState<number | null>(null)
+  const [runningSuggest, setRunningSuggest] = useState(false)
+  const [selectedSuggestionIds, setSelectedSuggestionIds] = useState<Set<number>>(new Set())
+
+  async function loadGradebook() {
+    if (!courseId) return
+    try {
+      const data = await api.get<GradebookPayload>(`/courses/${courseId}/gradebook`)
+      setGradebook(data)
+      setError(null)
+    } catch (err) {
+      setError((err as Error).message)
+    }
+  }
+
+  async function loadMatchData() {
+    if (!courseId) return
+    const statusQuery = matchStatusFilter === 'all' ? '' : `?status=${matchStatusFilter}`
+    const [matchRows, decisionRows] = await Promise.all([
+      api.get<MatchSuggestion[]>(`/courses/${courseId}/matches${statusQuery}`),
+      api.get<MatchDecision[]>(`/courses/${courseId}/matches/history`),
+    ])
+    setSuggestions(matchRows)
+    setDecisions(decisionRows)
+  }
 
   useEffect(() => {
+    void loadGradebook()
+    void loadMatchData().catch((err) => setError((err as Error).message))
+  }, [courseId, matchStatusFilter])
+
+  async function runSuggestions() {
     if (!courseId) return
-    api
-      .get<GradebookPayload>(`/courses/${courseId}/gradebook`)
-      .then(setGradebook)
-      .catch((err) => setError((err as Error).message))
-  }, [courseId])
+    setRunningSuggest(true)
+    try {
+      await api.post(`/courses/${courseId}/matches/suggest`)
+      await loadMatchData()
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setRunningSuggest(false)
+    }
+  }
+
+  async function confirmSuggestion(suggestionId: number) {
+    setMatchBusy(suggestionId)
+    try {
+      await api.post(`/courses/matches/${suggestionId}/confirm-canvas`)
+      await Promise.all([loadGradebook(), loadMatchData()])
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setMatchBusy(null)
+    }
+  }
+
+  async function rejectSuggestion(suggestionId: number) {
+    setMatchBusy(suggestionId)
+    try {
+      await api.post(`/courses/matches/${suggestionId}/reject`)
+      await loadMatchData()
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setMatchBusy(null)
+    }
+  }
+
+  async function bulkMatchAction(action: 'confirm_canvas' | 'reject') {
+    if (selectedSuggestionIds.size === 0) return
+    setMatchBusy(-1)
+    try {
+      await api.post('/courses/matches/bulk', {
+        suggestion_ids: Array.from(selectedSuggestionIds),
+        action,
+      })
+      setSelectedSuggestionIds(new Set())
+      await Promise.all([loadGradebook(), loadMatchData()])
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setMatchBusy(null)
+    }
+  }
 
   const filteredAssignments = useMemo(() => {
     if (!gradebook) return []
@@ -139,6 +241,95 @@ export function CourseGradebookPage() {
       {error ? <p className="error">{error}</p> : null}
 
       <div className="grid">
+        <article className="card">
+          <h3>Assignment Match Queue</h3>
+          <button onClick={() => void runSuggestions()} disabled={runningSuggest}>
+            {runningSuggest ? 'Computing...' : 'Run Match Suggestions'}
+          </button>
+          <select
+            value={matchStatusFilter}
+            onChange={(event) => setMatchStatusFilter(event.target.value as 'all' | 'suggested' | 'confirmed' | 'rejected')}
+            style={{ marginTop: '0.6rem' }}
+          >
+            <option value="all">All statuses</option>
+            <option value="suggested">Suggested only</option>
+            <option value="confirmed">Confirmed only</option>
+            <option value="rejected">Rejected only</option>
+          </select>
+          <div className="list" style={{ maxHeight: '280px', overflow: 'auto', marginTop: '0.6rem' }}>
+            {suggestions.length === 0 ? <p>No suggestions yet.</p> : null}
+            {suggestions.some((item) => item.status === 'suggested') ? (
+              <div className="card">
+                <div>Selected: {selectedSuggestionIds.size}</div>
+                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.35rem' }}>
+                  <button onClick={() => void bulkMatchAction('confirm_canvas')} disabled={selectedSuggestionIds.size === 0 || matchBusy !== null}>
+                    Confirm Selected
+                  </button>
+                  <button onClick={() => void bulkMatchAction('reject')} disabled={selectedSuggestionIds.size === 0 || matchBusy !== null}>
+                    Reject Selected
+                  </button>
+                </div>
+              </div>
+            ) : null}
+            {suggestions.map((suggestion) => (
+              <div key={suggestion.id} className="card">
+                {suggestion.status === 'suggested' ? (
+                  <label style={{ display: 'block', marginBottom: '0.35rem' }}>
+                    <input
+                      type="checkbox"
+                      checked={selectedSuggestionIds.has(suggestion.id)}
+                      onChange={(event) => {
+                        setSelectedSuggestionIds((prev) => {
+                          const next = new Set(prev)
+                          if (event.target.checked) next.add(suggestion.id)
+                          else next.delete(suggestion.id)
+                          return next
+                        })
+                      }}
+                    />{' '}
+                    Select
+                  </label>
+                ) : null}
+                <div>
+                  <strong>{suggestion.canvas_assignment_title || 'Canvas Assignment'}</strong> vs{' '}
+                  <strong>{suggestion.local_assignment_title || 'Local Assignment'}</strong>
+                </div>
+                <div>
+                  Confidence {(suggestion.confidence * 100).toFixed(1)}% | Name {(suggestion.name_score * 100).toFixed(0)}% |
+                  Due {(suggestion.due_date_score * 100).toFixed(0)}% | Points {(suggestion.points_score * 100).toFixed(0)}%
+                </div>
+                <div>Status: {suggestion.status}</div>
+                {suggestion.status === 'suggested' ? (
+                  <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.4rem' }}>
+                    <button onClick={() => void confirmSuggestion(suggestion.id)} disabled={matchBusy !== null && matchBusy !== suggestion.id}>
+                      Confirm Canvas Authoritative
+                    </button>
+                    <button onClick={() => void rejectSuggestion(suggestion.id)} disabled={matchBusy !== null && matchBusy !== suggestion.id}>
+                      Reject
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        </article>
+
+        <article className="card">
+          <h3>Canvas Authority Decision History</h3>
+          <div className="list" style={{ maxHeight: '280px', overflow: 'auto' }}>
+            {decisions.length === 0 ? <p>No decisions logged yet.</p> : null}
+            {decisions.map((decision) => (
+              <div key={decision.id} className="card">
+                <div>
+                  {decision.action}: <strong>{decision.canvas_assignment_title || 'Canvas Assignment'}</strong> vs{' '}
+                  <strong>{decision.local_assignment_title || 'Local Assignment'}</strong>
+                </div>
+                <div>{new Date(decision.created_at).toLocaleString()}</div>
+              </div>
+            ))}
+          </div>
+        </article>
+
         <article className="card">
           <h3>Student Controls</h3>
           <input

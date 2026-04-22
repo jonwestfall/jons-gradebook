@@ -8,6 +8,11 @@ type SyncRun = {
   started_at: string
   finished_at?: string | null
   error_message?: string | null
+  event_counts?: {
+    created: number
+    updated: number
+    deleted: number
+  }
 }
 
 type CanvasCourse = {
@@ -42,6 +47,40 @@ type MetadataPreview = {
   }[]
 }
 
+type SyncEvent = {
+  id: number
+  entity_type: string
+  action: string
+  canvas_course_id?: string | null
+  canvas_item_id?: string | null
+  local_item_id?: number | null
+  detail: Record<string, unknown>
+  created_at: string
+}
+
+type SyncEventPage = {
+  total: number
+  offset: number
+  limit: number
+  events: SyncEvent[]
+}
+
+type SyncRunDetail = {
+  id: number
+  snapshot_counts: {
+    courses: number
+    assignments: number
+    enrollments: number
+    submissions: number
+  }
+  event_counts: {
+    created: number
+    updated: number
+    deleted: number
+  }
+  recent_events: SyncEvent[]
+}
+
 function formatDate(value?: string | null): string {
   if (!value) return 'N/A'
   return new Date(value).toLocaleDateString()
@@ -55,6 +94,14 @@ export function CanvasSyncPage() {
   const [mappingDrafts, setMappingDrafts] = useState<Record<string, string>>({})
   const [metadataPreview, setMetadataPreview] = useState<MetadataPreview | null>(null)
   const [previewCourseId, setPreviewCourseId] = useState<string>('')
+  const [selectedRunId, setSelectedRunId] = useState<number | null>(null)
+  const [selectedRunDetail, setSelectedRunDetail] = useState<SyncRunDetail | null>(null)
+  const [runEvents, setRunEvents] = useState<SyncEvent[]>([])
+  const [runEventsTotal, setRunEventsTotal] = useState(0)
+  const [runEventsOffset, setRunEventsOffset] = useState(0)
+  const runEventsPageSize = 50
+  const [eventActionFilter, setEventActionFilter] = useState<'all' | 'created' | 'updated' | 'deleted'>('all')
+  const [eventEntityFilter, setEventEntityFilter] = useState<'all' | 'course' | 'enrollment' | 'assignment' | 'submission'>('all')
 
   const [loading, setLoading] = useState(false)
   const [discovering, setDiscovering] = useState(false)
@@ -70,6 +117,27 @@ export function CanvasSyncPage() {
   async function loadRuns() {
     const data = await api.get<SyncRun[]>('/canvas/sync/runs')
     setRuns(data)
+    if (data.length > 0 && selectedRunId === null) {
+      const newestId = data[0].id
+      setSelectedRunId(newestId)
+      await loadRunDetail(newestId)
+    }
+  }
+
+  async function loadRunDetail(runId: number, offset = runEventsOffset) {
+    const detail = await api.get<SyncRunDetail>(`/canvas/sync/runs/${runId}`)
+    setSelectedRunDetail(detail)
+    const params = new URLSearchParams()
+    if (eventActionFilter !== 'all') params.set('action', eventActionFilter)
+    if (eventEntityFilter !== 'all') params.set('entity_type', eventEntityFilter)
+    const actionQuery = params.toString() ? `?${params.toString()}` : ''
+    const separator = actionQuery ? '&' : '?'
+    const page = await api.get<SyncEventPage>(
+      `/canvas/sync/runs/${runId}/events${actionQuery}${separator}limit=${runEventsPageSize}&offset=${offset}`,
+    )
+    setRunEvents(page.events)
+    setRunEventsTotal(page.total)
+    setRunEventsOffset(page.offset)
   }
 
   async function loadStudentMapping() {
@@ -210,6 +278,38 @@ export function CanvasSyncPage() {
     void loadStudentMapping()
     void loadMetadataPreview()
   }, [])
+
+  useEffect(() => {
+    if (!selectedRunId) return
+    void loadRunDetail(selectedRunId, 0)
+  }, [selectedRunId, eventActionFilter, eventEntityFilter])
+
+  function summarizeEventDetail(event: SyncEvent): string {
+    const detail = event.detail || {}
+    if (event.entity_type === 'assignment') {
+      const title = typeof detail.title === 'string' ? detail.title : null
+      const reason = typeof detail.reason === 'string' ? detail.reason : null
+      if (title && reason) return `${title} (${reason})`
+      if (title) return title
+    }
+    if (event.entity_type === 'enrollment') {
+      const studentName = typeof detail.student_name === 'string' ? detail.student_name : null
+      const reason = typeof detail.reason === 'string' ? detail.reason : null
+      if (studentName && reason) return `${studentName} (${reason})`
+      if (studentName) return studentName
+    }
+    if (event.entity_type === 'submission') {
+      const status = typeof detail.status === 'string' ? detail.status : null
+      const score = typeof detail.score === 'number' ? detail.score : null
+      if (status && score !== null) return `status=${status}, score=${score}`
+      if (status) return `status=${status}`
+    }
+    if (event.entity_type === 'course') {
+      const name = typeof detail.name === 'string' ? detail.name : null
+      if (name) return name
+    }
+    return JSON.stringify(detail)
+  }
 
   return (
     <section>
@@ -383,16 +483,127 @@ export function CanvasSyncPage() {
 
       <ul className="list">
         {runs.map((run) => (
-          <li key={run.id} className="card">
+          <li key={run.id} className="card" style={{ cursor: 'pointer' }} onClick={() => setSelectedRunId(run.id)}>
             <strong>Run #{run.id}</strong>
             <div>{run.trigger_type}</div>
             <div>Status: {run.status}</div>
             <div>Started: {new Date(run.started_at).toLocaleString()}</div>
             {run.finished_at ? <div>Finished: {new Date(run.finished_at).toLocaleString()}</div> : null}
+            {run.event_counts ? (
+              <div>
+                Changes: +{run.event_counts.created} / ~{run.event_counts.updated} / -{run.event_counts.deleted}
+              </div>
+            ) : null}
             {run.error_message ? <div className="error">{run.error_message}</div> : null}
           </li>
         ))}
       </ul>
+
+      {selectedRunDetail ? (
+        <article className="card">
+          <h3>Import Audit Trail (Run #{selectedRunDetail.id})</h3>
+          <p>
+            Snapshots: courses {selectedRunDetail.snapshot_counts.courses}, assignments{' '}
+            {selectedRunDetail.snapshot_counts.assignments}, enrollments {selectedRunDetail.snapshot_counts.enrollments},
+            submissions {selectedRunDetail.snapshot_counts.submissions}
+          </p>
+          <p>
+            Events: created {selectedRunDetail.event_counts.created}, updated {selectedRunDetail.event_counts.updated},
+            deleted {selectedRunDetail.event_counts.deleted}
+          </p>
+          <div className="form">
+            <label>
+              Event Filter
+              <select
+                value={eventActionFilter}
+                onChange={(event) =>
+                  setEventActionFilter(event.target.value as 'all' | 'created' | 'updated' | 'deleted')
+                }
+              >
+                <option value="all">All</option>
+                <option value="created">Created</option>
+                <option value="updated">Updated</option>
+                <option value="deleted">Deleted</option>
+              </select>
+            </label>
+            <label>
+              Entity Filter
+              <select
+                value={eventEntityFilter}
+                onChange={(event) =>
+                  setEventEntityFilter(
+                    event.target.value as 'all' | 'course' | 'enrollment' | 'assignment' | 'submission',
+                  )
+                }
+              >
+                <option value="all">All</option>
+                <option value="course">Courses</option>
+                <option value="enrollment">Enrollments</option>
+                <option value="assignment">Assignments</option>
+                <option value="submission">Submissions</option>
+              </select>
+            </label>
+            <button
+              onClick={() => {
+                if (!selectedRunId) return
+                const nextOffset = Math.max(0, runEventsOffset - runEventsPageSize)
+                void loadRunDetail(selectedRunId, nextOffset)
+              }}
+              disabled={!selectedRunId || runEventsOffset === 0}
+            >
+              Newer
+            </button>
+            <button
+              onClick={() => {
+                if (!selectedRunId) return
+                const nextOffset = runEventsOffset + runEventsPageSize
+                if (nextOffset >= runEventsTotal) return
+                void loadRunDetail(selectedRunId, nextOffset)
+              }}
+              disabled={!selectedRunId || runEventsOffset + runEventsPageSize >= runEventsTotal}
+            >
+              Older
+            </button>
+          </div>
+          <p>
+            Showing {runEvents.length} of {runEventsTotal} events
+          </p>
+          <p>
+            Deleted enrollment events indicate Canvas no longer returns that enrollment; deleted assignment events mean
+            Canvas removed or unpublished it and the local Canvas-linked assignment is archived/hidden.
+          </p>
+          <div className="card" style={{ overflow: 'auto', maxHeight: '360px' }}>
+            <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 860 }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: 'left', padding: '0.35rem' }}>Time</th>
+                  <th style={{ textAlign: 'left', padding: '0.35rem' }}>Entity</th>
+                  <th style={{ textAlign: 'left', padding: '0.35rem' }}>Action</th>
+                  <th style={{ textAlign: 'left', padding: '0.35rem' }}>Canvas IDs</th>
+                  <th style={{ textAlign: 'left', padding: '0.35rem' }}>Details</th>
+                </tr>
+              </thead>
+              <tbody>
+                {runEvents.map((event) => (
+                  <tr key={event.id}>
+                    <td style={{ borderTop: '1px solid #d5c8aa', padding: '0.35rem', whiteSpace: 'nowrap' }}>
+                      {new Date(event.created_at).toLocaleString()}
+                    </td>
+                    <td style={{ borderTop: '1px solid #d5c8aa', padding: '0.35rem' }}>{event.entity_type}</td>
+                    <td style={{ borderTop: '1px solid #d5c8aa', padding: '0.35rem' }}>{event.action}</td>
+                    <td style={{ borderTop: '1px solid #d5c8aa', padding: '0.35rem' }}>
+                      {event.canvas_course_id || '—'} / {event.canvas_item_id || '—'}
+                    </td>
+                    <td style={{ borderTop: '1px solid #d5c8aa', padding: '0.35rem' }}>
+                      {summarizeEventDetail(event)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </article>
+      ) : null}
     </section>
   )
 }

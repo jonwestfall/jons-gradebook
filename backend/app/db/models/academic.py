@@ -40,6 +40,11 @@ class MatchStatus(str, enum.Enum):
     rejected = "rejected"
 
 
+class MatchDecisionAction(str, enum.Enum):
+    confirm_canvas = "confirm_canvas"
+    reject = "reject"
+
+
 class GradeSource(str, enum.Enum):
     canvas = "canvas"
     local = "local"
@@ -172,6 +177,22 @@ class AssignmentMatchSuggestion(Base, TimestampMixin):
     course = relationship("Course")
     canvas_assignment = relationship("Assignment", foreign_keys=[canvas_assignment_id])
     local_assignment = relationship("Assignment", foreign_keys=[local_assignment_id])
+    decisions = relationship("AssignmentMatchDecision", back_populates="suggestion", cascade="all, delete-orphan")
+
+
+class AssignmentMatchDecision(Base, TimestampMixin):
+    __tablename__ = "assignment_match_decisions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    suggestion_id: Mapped[int] = mapped_column(
+        ForeignKey("assignment_match_suggestions.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    course_id: Mapped[int] = mapped_column(ForeignKey("courses.id", ondelete="CASCADE"), nullable=False, index=True)
+    action: Mapped[MatchDecisionAction] = mapped_column(Enum(MatchDecisionAction), nullable=False)
+    note: Mapped[Optional[str]] = mapped_column(Text)
+
+    suggestion = relationship("AssignmentMatchSuggestion", back_populates="decisions")
+    course = relationship("Course")
 
 
 class GradeEntry(Base, TimestampMixin):

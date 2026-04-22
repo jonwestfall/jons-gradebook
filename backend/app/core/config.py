@@ -30,6 +30,7 @@ class Settings(BaseSettings):
 
     default_timezone: str = Field(default="America/Chicago", alias="DEFAULT_TIMEZONE")
     daily_sync_cron: str = Field(default="0 5 * * *", alias="DAILY_SYNC_CRON")
+    daily_backup_cron: str = Field(default="30 5 * * *", alias="DAILY_BACKUP_CRON")
 
     storage_root: str = Field(default="/data/storage", alias="STORAGE_ROOT")
     backup_root: str = Field(default="/data/backups", alias="BACKUP_ROOT")

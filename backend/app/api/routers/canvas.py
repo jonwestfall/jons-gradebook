@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.db.models import CanvasSyncRun
+from app.db.models import CanvasSyncEntityType, CanvasSyncEvent, CanvasSyncEventAction, CanvasSyncRun
 from app.db.session import get_db
 from app.schemas.canvas import (
     CanvasCourseSelectionUpdateRequest,
@@ -151,6 +151,11 @@ def list_sync_runs(db: Session = Depends(get_db)) -> list[dict]:
             "finished_at": run.finished_at.isoformat() if run.finished_at else None,
             "snapshot_label": run.snapshot_label,
             "error_message": run.error_message,
+            "event_counts": {
+                "created": sum(1 for event in run.events if event.action.value == "created"),
+                "updated": sum(1 for event in run.events if event.action.value == "updated"),
+                "deleted": sum(1 for event in run.events if event.action.value == "deleted"),
+            },
         }
         for run in runs
     ]
@@ -176,4 +181,72 @@ def get_sync_run(run_id: int, db: Session = Depends(get_db)) -> dict:
             "enrollments": len(run.enrollment_snapshots),
             "submissions": len(run.submission_snapshots),
         },
+        "event_counts": {
+            "created": sum(1 for event in run.events if event.action.value == "created"),
+            "updated": sum(1 for event in run.events if event.action.value == "updated"),
+            "deleted": sum(1 for event in run.events if event.action.value == "deleted"),
+        },
+        "recent_events": [
+            {
+                "id": event.id,
+                "entity_type": event.entity_type.value,
+                "action": event.action.value,
+                "canvas_course_id": event.canvas_course_id,
+                "canvas_item_id": event.canvas_item_id,
+                "local_item_id": event.local_item_id,
+                "detail": event.detail,
+                "created_at": event.created_at.isoformat(),
+            }
+            for event in sorted(run.events, key=lambda item: item.created_at, reverse=True)[:40]
+        ],
+    }
+
+
+@router.get("/sync/runs/{run_id}/events")
+def list_sync_run_events(
+    run_id: int,
+    action: str | None = Query(default=None),
+    entity_type: str | None = Query(default=None),
+    limit: int = Query(default=200, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+) -> dict:
+    run = db.get(CanvasSyncRun, run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Sync run not found")
+
+    query = select(CanvasSyncEvent).where(CanvasSyncEvent.sync_run_id == run_id).order_by(CanvasSyncEvent.created_at.desc())
+    if action:
+        try:
+            parsed_action = CanvasSyncEventAction(action)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="Invalid event action") from exc
+        query = query.where(CanvasSyncEvent.action == parsed_action)
+    if entity_type:
+        try:
+            parsed_entity = CanvasSyncEntityType(entity_type)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="Invalid entity type") from exc
+        query = query.where(CanvasSyncEvent.entity_type == parsed_entity)
+    all_events = db.scalars(query).all()
+    total = len(all_events)
+    events = all_events[offset : offset + limit]
+
+    return {
+        "total": total,
+        "offset": offset,
+        "limit": limit,
+        "events": [
+            {
+                "id": event.id,
+                "entity_type": event.entity_type.value,
+                "action": event.action.value,
+                "canvas_course_id": event.canvas_course_id,
+                "canvas_item_id": event.canvas_item_id,
+                "local_item_id": event.local_item_id,
+                "detail": event.detail,
+                "created_at": event.created_at.isoformat(),
+            }
+            for event in events
+        ],
     }

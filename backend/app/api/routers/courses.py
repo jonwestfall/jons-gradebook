@@ -6,6 +6,8 @@ from sqlalchemy.orm import Session
 
 from app.db.models import (
     Assignment,
+    AssignmentMatchDecision,
+    AssignmentMatchSuggestion,
     AssignmentSource,
     ClassSchedule,
     Course,
@@ -14,6 +16,7 @@ from app.db.models import (
     GradeSource,
     GradeStatus,
     GradeRuleTemplate,
+    MatchStatus,
 )
 from app.db.session import get_db
 from app.schemas.academic import (
@@ -25,11 +28,12 @@ from app.schemas.academic import (
     CourseOut,
     GradeEntryUpsert,
     GradeRuleTemplateCreate,
+    MatchBulkActionRequest,
     MeetingGenerateRequest,
 )
 from app.services.attendance import generate_meetings
 from app.services.gradebook import build_merged_gradebook
-from app.services.matching import confirm_canvas_authoritative, suggest_matches_for_course
+from app.services.matching import confirm_canvas_authoritative, reject_match_suggestion, suggest_matches_for_course
 
 router = APIRouter(prefix="/courses", tags=["courses"])
 
@@ -143,18 +147,42 @@ def merged_gradebook(
 @router.post("/{course_id}/matches/suggest")
 def suggest_assignment_matches(course_id: int, db: Session = Depends(get_db)) -> list[dict]:
     suggestions = suggest_matches_for_course(db, course_id)
+    return _serialize_match_suggestions(suggestions)
+
+
+@router.get("/{course_id}/matches")
+def list_assignment_matches(
+    course_id: int,
+    status: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+) -> list[dict]:
+    query = select(AssignmentMatchSuggestion).where(AssignmentMatchSuggestion.course_id == course_id)
+    if status:
+        try:
+            parsed_status = MatchStatus(status)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="Invalid match status") from exc
+        query = query.where(AssignmentMatchSuggestion.status == parsed_status)
+    suggestions = db.scalars(query.order_by(AssignmentMatchSuggestion.confidence.desc())).all()
+    return _serialize_match_suggestions(suggestions)
+
+
+def _serialize_match_suggestions(suggestions: list[AssignmentMatchSuggestion]) -> list[dict]:
     return [
         {
             "id": suggestion.id,
             "course_id": suggestion.course_id,
             "canvas_assignment_id": suggestion.canvas_assignment_id,
+            "canvas_assignment_title": suggestion.canvas_assignment.title if suggestion.canvas_assignment else None,
             "local_assignment_id": suggestion.local_assignment_id,
+            "local_assignment_title": suggestion.local_assignment.title if suggestion.local_assignment else None,
             "confidence": suggestion.confidence,
             "name_score": suggestion.name_score,
             "due_date_score": suggestion.due_date_score,
             "points_score": suggestion.points_score,
             "status": suggestion.status.value,
             "rationale": suggestion.rationale,
+            "updated_at": suggestion.updated_at.isoformat(),
         }
         for suggestion in suggestions
     ]
@@ -172,6 +200,63 @@ def confirm_canvas_match(suggestion_id: int, db: Session = Depends(get_db)) -> d
         }
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post("/matches/{suggestion_id}/reject")
+def reject_canvas_match(suggestion_id: int, db: Session = Depends(get_db)) -> dict:
+    try:
+        suggestion = reject_match_suggestion(db, suggestion_id)
+        return {
+            "id": suggestion.id,
+            "status": suggestion.status.value,
+        }
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post("/matches/bulk")
+def bulk_match_action(payload: MatchBulkActionRequest, db: Session = Depends(get_db)) -> dict:
+    updated = 0
+    missing_ids: list[int] = []
+
+    for suggestion_id in payload.suggestion_ids:
+        try:
+            if payload.action == "confirm_canvas":
+                confirm_canvas_authoritative(db, suggestion_id)
+            else:
+                reject_match_suggestion(db, suggestion_id, note=payload.note)
+            updated += 1
+        except ValueError:
+            missing_ids.append(suggestion_id)
+
+    return {
+        "action": payload.action,
+        "requested_count": len(payload.suggestion_ids),
+        "updated_count": updated,
+        "missing_ids": missing_ids,
+    }
+
+
+@router.get("/{course_id}/matches/history")
+def list_match_decision_history(course_id: int, db: Session = Depends(get_db)) -> list[dict]:
+    decisions = db.scalars(
+        select(AssignmentMatchDecision)
+        .where(AssignmentMatchDecision.course_id == course_id)
+        .order_by(AssignmentMatchDecision.created_at.desc())
+        .limit(300)
+    ).all()
+    return [
+        {
+            "id": decision.id,
+            "suggestion_id": decision.suggestion_id,
+            "action": decision.action.value,
+            "note": decision.note,
+            "created_at": decision.created_at.isoformat(),
+            "canvas_assignment_title": decision.suggestion.canvas_assignment.title if decision.suggestion else None,
+            "local_assignment_title": decision.suggestion.local_assignment.title if decision.suggestion else None,
+        }
+        for decision in decisions
+    ]
 
 
 @router.post("/rules/templates")

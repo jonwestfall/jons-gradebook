@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.models import BackupArtifact
 from app.db.session import get_db
-from app.schemas.backup import BackupCreateRequest
-from app.services.backup import create_encrypted_backup
+from app.schemas.backup import BackupCreateRequest, BackupRestoreRequest
+from app.services.backup import create_encrypted_backup, inspect_backup, restore_from_backup_artifact
 
 router = APIRouter(prefix="/backup", tags=["backup"])
 
@@ -38,3 +38,34 @@ def list_backups(db: Session = Depends(get_db)) -> list[dict]:
         }
         for backup in backups
     ]
+
+
+@router.get("/{backup_id}")
+def get_backup(backup_id: int, db: Session = Depends(get_db)) -> dict:
+    artifact = db.get(BackupArtifact, backup_id)
+    if not artifact:
+        raise HTTPException(status_code=404, detail="Backup not found")
+    details = inspect_backup(artifact)
+    return {
+        "id": artifact.id,
+        "backup_path": artifact.backup_path,
+        "checksum_sha256": artifact.checksum_sha256,
+        "encrypted": artifact.encrypted,
+        "created_at": artifact.created_at.isoformat(),
+        "note": artifact.note,
+        **details,
+    }
+
+
+@router.post("/restore")
+def restore_backup(payload: BackupRestoreRequest, db: Session = Depends(get_db)) -> dict:
+    artifact = db.get(BackupArtifact, payload.backup_id)
+    if not artifact:
+        raise HTTPException(status_code=404, detail="Backup not found")
+
+    restored = restore_from_backup_artifact(db, artifact)
+    return {
+        "backup_id": artifact.id,
+        "backup_path": artifact.backup_path,
+        **restored,
+    }

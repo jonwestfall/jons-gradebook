@@ -1,5 +1,5 @@
 from datetime import date, datetime, time
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -73,3 +73,9 @@ class MeetingGenerateRequest(BaseModel):
     course_id: int
     start_date: date
     end_date: date
+
+
+class MatchBulkActionRequest(BaseModel):
+    suggestion_ids: list[int] = Field(min_length=1)
+    action: Literal["confirm_canvas", "reject"]
+    note: str | None = None
