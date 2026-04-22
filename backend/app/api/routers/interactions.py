@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.db.models import InteractionLog
+from app.db.models import Advisee, Course, Enrollment, InteractionLog, StudentProfile
 from app.db.session import get_db
-from app.schemas.interactions import InteractionCreate
+from app.schemas.interactions import InteractionBulkCreate, InteractionCreate
 
 router = APIRouter(prefix="/interactions", tags=["interactions"])
 
@@ -14,11 +14,25 @@ router = APIRouter(prefix="/interactions", tags=["interactions"])
 @router.get("/")
 def list_interactions(db: Session = Depends(get_db)) -> list[dict]:
     interactions = db.scalars(select(InteractionLog).order_by(InteractionLog.occurred_at.desc()).limit(200)).all()
+
+    student_ids = {interaction.student_profile_id for interaction in interactions if interaction.student_profile_id is not None}
+    advisee_ids = {interaction.advisee_id for interaction in interactions if interaction.advisee_id is not None}
+
+    students = (
+        db.scalars(select(StudentProfile).where(StudentProfile.id.in_(student_ids))).all() if student_ids else []
+    )
+    advisees = db.scalars(select(Advisee).where(Advisee.id.in_(advisee_ids))).all() if advisee_ids else []
+
+    student_map = {student.id: f"{student.first_name} {student.last_name}".strip() for student in students}
+    advisee_map = {advisee.id: f"{advisee.first_name} {advisee.last_name}".strip() for advisee in advisees}
+
     return [
         {
             "id": interaction.id,
             "student_profile_id": interaction.student_profile_id,
             "advisee_id": interaction.advisee_id,
+            "student_name": student_map.get(interaction.student_profile_id),
+            "advisee_name": advisee_map.get(interaction.advisee_id),
             "interaction_type": interaction.interaction_type.value,
             "occurred_at": interaction.occurred_at.isoformat(),
             "summary": interaction.summary,
@@ -40,3 +54,118 @@ def create_interaction(payload: InteractionCreate, db: Session = Depends(get_db)
         "interaction_type": interaction.interaction_type.value,
         "occurred_at": interaction.occurred_at.isoformat(),
     }
+
+
+@router.get("/targets")
+def list_interaction_targets(db: Session = Depends(get_db)) -> dict:
+    students = db.scalars(select(StudentProfile).order_by(StudentProfile.last_name.asc(), StudentProfile.first_name.asc())).all()
+    courses = db.scalars(select(Course).order_by(Course.name.asc())).all()
+    advisees = db.scalars(select(Advisee).order_by(Advisee.last_name.asc(), Advisee.first_name.asc())).all()
+
+    enrollment_counts = {}
+    if courses:
+        course_ids = [course.id for course in courses]
+        enrollments = db.scalars(select(Enrollment).where(Enrollment.course_id.in_(course_ids))).all()
+        for enrollment in enrollments:
+            enrollment_counts[enrollment.course_id] = enrollment_counts.get(enrollment.course_id, 0) + 1
+
+    return {
+        "students": [
+            {
+                "id": student.id,
+                "name": f"{student.first_name} {student.last_name}".strip(),
+                "email": student.email,
+            }
+            for student in students
+        ],
+        "courses": [
+            {
+                "id": course.id,
+                "name": course.name,
+                "section_name": course.section_name,
+                "student_count": enrollment_counts.get(course.id, 0),
+            }
+            for course in courses
+        ],
+        "advisees": [
+            {
+                "id": advisee.id,
+                "name": f"{advisee.first_name} {advisee.last_name}".strip(),
+                "student_profile_id": advisee.student_profile_id,
+            }
+            for advisee in advisees
+        ],
+    }
+
+
+@router.post("/bulk")
+def create_interaction_bulk(payload: InteractionBulkCreate, db: Session = Depends(get_db)) -> dict:
+    created = 0
+
+    if payload.target_scope == "student":
+        if payload.target_id is None:
+            raise HTTPException(status_code=400, detail="target_id is required for student scope")
+        student = db.get(StudentProfile, payload.target_id)
+        if not student:
+            raise HTTPException(status_code=404, detail="Student not found")
+
+        db.add(
+            InteractionLog(
+                student_profile_id=student.id,
+                advisee_id=None,
+                interaction_type=payload.interaction_type,
+                occurred_at=payload.occurred_at,
+                summary=payload.summary,
+                notes=payload.notes,
+                metadata_json={**payload.metadata_json, "target_scope": "student"},
+            )
+        )
+        created = 1
+
+    elif payload.target_scope == "course":
+        if payload.target_id is None:
+            raise HTTPException(status_code=400, detail="target_id is required for course scope")
+        course = db.get(Course, payload.target_id)
+        if not course:
+            raise HTTPException(status_code=404, detail="Course not found")
+
+        enrollments = db.scalars(select(Enrollment).where(Enrollment.course_id == course.id)).all()
+        for enrollment in enrollments:
+            db.add(
+                InteractionLog(
+                    student_profile_id=enrollment.student_id,
+                    advisee_id=None,
+                    interaction_type=payload.interaction_type,
+                    occurred_at=payload.occurred_at,
+                    summary=payload.summary,
+                    notes=payload.notes,
+                    metadata_json={
+                        **payload.metadata_json,
+                        "target_scope": "course",
+                        "course_id": course.id,
+                        "course_name": course.name,
+                    },
+                )
+            )
+            created += 1
+
+    elif payload.target_scope == "advisees":
+        advisees = db.scalars(select(Advisee)).all()
+        for advisee in advisees:
+            db.add(
+                InteractionLog(
+                    student_profile_id=advisee.student_profile_id,
+                    advisee_id=advisee.id,
+                    interaction_type=payload.interaction_type,
+                    occurred_at=payload.occurred_at,
+                    summary=payload.summary,
+                    notes=payload.notes,
+                    metadata_json={**payload.metadata_json, "target_scope": "advisees"},
+                )
+            )
+            created += 1
+    else:
+        raise HTTPException(status_code=400, detail="Unsupported target_scope")
+
+    db.commit()
+    return {"created_count": created, "target_scope": payload.target_scope}

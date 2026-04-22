@@ -13,3 +13,13 @@ class InteractionCreate(BaseModel):
     summary: str = Field(min_length=1, max_length=255)
     notes: str | None = None
     metadata_json: dict = Field(default_factory=dict)
+
+
+class InteractionBulkCreate(BaseModel):
+    interaction_type: InteractionType
+    occurred_at: datetime
+    summary: str = Field(min_length=1, max_length=255)
+    notes: str | None = None
+    metadata_json: dict = Field(default_factory=dict)
+    target_scope: str = Field(pattern="^(student|course|advisees)$")
+    target_id: int | None = None

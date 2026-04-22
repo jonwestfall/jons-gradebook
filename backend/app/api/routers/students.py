@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
 from app.db.models import (
+    Advisee,
     AdvisingMeeting,
     AlertStatus,
     Assignment,
@@ -49,6 +50,8 @@ def student_profile(student_id: int, db: Session = Depends(get_db)) -> dict:
     )
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
+
+    linked_advisee = db.scalar(select(Advisee).where(Advisee.student_profile_id == student_id))
 
     alerts = db.scalars(
         select(StudentAlert)
@@ -194,6 +197,8 @@ def student_profile(student_id: int, db: Session = Depends(get_db)) -> dict:
             "student_number": student.student_number,
             "institution_name": student.institution_name,
             "notes": student.notes,
+            "is_advisee": linked_advisee is not None,
+            "advisee_id": linked_advisee.id if linked_advisee else None,
         },
         "priority_sections": ["alerts", "attendance_summary", "recent_interactions", "grade_overview"],
         "alerts": [
@@ -350,3 +355,41 @@ def remove_student_tag(student_id: int, tag_id: int, db: Session = Depends(get_d
     db.delete(link)
     db.commit()
     return {"deleted": True, "student_id": student_id, "tag_id": tag_id}
+
+
+@router.post("/{student_id}/mark-advisee")
+def mark_student_as_advisee(student_id: int, db: Session = Depends(get_db)) -> dict:
+    student = db.get(StudentProfile, student_id)
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+
+    existing = db.scalar(select(Advisee).where(Advisee.student_profile_id == student_id))
+    if existing:
+        return {
+            "id": existing.id,
+            "student_profile_id": existing.student_profile_id,
+            "first_name": existing.first_name,
+            "last_name": existing.last_name,
+            "email": existing.email,
+            "already_existed": True,
+        }
+
+    advisee = Advisee(
+        student_profile_id=student.id,
+        first_name=student.first_name,
+        last_name=student.last_name,
+        email=student.email,
+        external_id=student.student_number,
+        notes=student.notes,
+    )
+    db.add(advisee)
+    db.commit()
+    db.refresh(advisee)
+    return {
+        "id": advisee.id,
+        "student_profile_id": advisee.student_profile_id,
+        "first_name": advisee.first_name,
+        "last_name": advisee.last_name,
+        "email": advisee.email,
+        "already_existed": False,
+    }

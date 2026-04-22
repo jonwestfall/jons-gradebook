@@ -9,6 +9,8 @@ type Profile = {
     email?: string | null
     student_number?: string | null
     notes?: string | null
+    is_advisee?: boolean
+    advisee_id?: number | null
   }
   priority_sections: string[]
   alerts: {
@@ -63,6 +65,7 @@ export function StudentProfilePage() {
   const [alertTitle, setAlertTitle] = useState('')
   const [alertMessage, setAlertMessage] = useState('')
   const [alertSeverity, setAlertSeverity] = useState('medium')
+  const [markingAdvisee, setMarkingAdvisee] = useState(false)
 
   async function loadProfile() {
     if (!studentId) return
@@ -117,6 +120,17 @@ export function StudentProfilePage() {
     await loadProfile()
   }
 
+  async function markAsAdvisee() {
+    if (!studentId) return
+    setMarkingAdvisee(true)
+    try {
+      await api.post(`/students/${studentId}/mark-advisee`)
+      await loadProfile()
+    } finally {
+      setMarkingAdvisee(false)
+    }
+  }
+
   if (!profile) {
     return <p>Loading profile...</p>
   }
@@ -126,6 +140,15 @@ export function StudentProfilePage() {
       <h2>{profile.student.name}</h2>
       <p>Email: {profile.student.email || 'N/A'}</p>
       <p>Student number: {profile.student.student_number || 'N/A'}</p>
+      <p>
+        Advisee status:{' '}
+        {profile.student.is_advisee ? `Yes (Advisee #${profile.student.advisee_id})` : 'Not currently marked as advisee'}
+      </p>
+      {!profile.student.is_advisee ? (
+        <button onClick={() => void markAsAdvisee()} disabled={markingAdvisee}>
+          {markingAdvisee ? 'Marking...' : 'Mark as Advisee'}
+        </button>
+      ) : null}
       <p>Priority order: {profile.priority_sections.join(' > ')}</p>
 
       <div className="grid">
