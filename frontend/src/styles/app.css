@@ -262,6 +262,33 @@ button:hover {
   gap: 0.45rem;
 }
 
+.students-grid-wrap {
+  margin-top: 0.8rem;
+  overflow: auto;
+}
+
+.students-grid-table {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 920px;
+}
+
+.students-grid-table th,
+.students-grid-table td {
+  text-align: left;
+  padding: 0.42rem;
+  border-top: 1px solid var(--line);
+  vertical-align: middle;
+}
+
+.students-grid-table thead th {
+  background: #fff5df;
+  border-top: 0;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
 .gradebook-table {
   border-collapse: collapse;
   width: 100%;
@@ -371,5 +398,9 @@ pre {
 
   .gradebook-details-pane {
     position: static;
+  }
+
+  .students-grid-table {
+    min-width: 720px;
   }
 }

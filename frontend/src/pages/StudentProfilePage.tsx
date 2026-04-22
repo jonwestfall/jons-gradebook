@@ -6,7 +6,10 @@ type Profile = {
   student: {
     id: number
     name: string
+    first_name: string
+    last_name: string
     email?: string | null
+    phone_number?: string | null
     student_number?: string | null
     notes?: string | null
     is_advisee?: boolean
@@ -61,6 +64,10 @@ export function StudentProfilePage() {
   const { studentId } = useParams<{ studentId: string }>()
   const [profile, setProfile] = useState<Profile | null>(null)
   const [notesDraft, setNotesDraft] = useState('')
+  const [firstNameDraft, setFirstNameDraft] = useState('')
+  const [lastNameDraft, setLastNameDraft] = useState('')
+  const [emailDraft, setEmailDraft] = useState('')
+  const [phoneDraft, setPhoneDraft] = useState('')
   const [newTag, setNewTag] = useState('')
   const [alertTitle, setAlertTitle] = useState('')
   const [alertMessage, setAlertMessage] = useState('')
@@ -72,6 +79,10 @@ export function StudentProfilePage() {
     const data = await api.get<Profile>(`/students/${studentId}/profile`)
     setProfile(data)
     setNotesDraft(data.student.notes || '')
+    setFirstNameDraft(data.student.first_name || '')
+    setLastNameDraft(data.student.last_name || '')
+    setEmailDraft(data.student.email || '')
+    setPhoneDraft(data.student.phone_number || '')
   }
 
   useEffect(() => {
@@ -82,6 +93,18 @@ export function StudentProfilePage() {
     event.preventDefault()
     if (!studentId) return
     await api.patch(`/students/${studentId}/notes`, { notes: notesDraft })
+    await loadProfile()
+  }
+
+  async function saveProfileFields(event: FormEvent) {
+    event.preventDefault()
+    if (!studentId) return
+    await api.patch(`/students/${studentId}/profile-fields`, {
+      first_name: firstNameDraft.trim(),
+      last_name: lastNameDraft.trim(),
+      email: emailDraft.trim() || null,
+      phone_number: phoneDraft.trim() || null,
+    })
     await loadProfile()
   }
 
@@ -138,8 +161,17 @@ export function StudentProfilePage() {
   return (
     <section>
       <h2>{profile.student.name}</h2>
-      <p>Email: {profile.student.email || 'N/A'}</p>
-      <p>Student number: {profile.student.student_number || 'N/A'}</p>
+      <article className="card">
+        <h3>Student Info</h3>
+        <form className="form gradebook-toolbar" onSubmit={saveProfileFields}>
+          <input value={firstNameDraft} onChange={(event) => setFirstNameDraft(event.target.value)} placeholder="First name" required />
+          <input value={lastNameDraft} onChange={(event) => setLastNameDraft(event.target.value)} placeholder="Last name" required />
+          <input value={emailDraft} onChange={(event) => setEmailDraft(event.target.value)} placeholder="Email address" />
+          <input value={phoneDraft} onChange={(event) => setPhoneDraft(event.target.value)} placeholder="Phone number" />
+          <button type="submit">Save Student Info</button>
+        </form>
+        <p>Student number: {profile.student.student_number || 'N/A'}</p>
+      </article>
       <p>
         Advisee status:{' '}
         {profile.student.is_advisee ? `Yes (Advisee #${profile.student.advisee_id})` : 'Not currently marked as advisee'}

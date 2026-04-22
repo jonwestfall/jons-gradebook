@@ -24,3 +24,10 @@ class StudentTagCreate(BaseModel):
 
 class StudentNotesUpdate(BaseModel):
     notes: str | None = None
+
+
+class StudentProfileUpdate(BaseModel):
+    first_name: str = Field(min_length=1, max_length=120)
+    last_name: str = Field(min_length=1, max_length=120)
+    email: str | None = Field(default=None, max_length=255)
+    phone_number: str | None = Field(default=None, max_length=32)

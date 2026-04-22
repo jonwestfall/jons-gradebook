@@ -89,6 +89,13 @@ function normalizeCompletionStatus(entry?: StudentAssignment): 'complete' | 'inc
   return 'incomplete'
 }
 
+function nextCompletionStatus(current: 'complete' | 'incomplete' | 'missing' | 'excused') {
+  if (current === 'complete') return 'incomplete'
+  if (current === 'incomplete') return 'missing'
+  if (current === 'missing') return 'excused'
+  return 'complete'
+}
+
 function renderAssignmentValue(entry: StudentAssignment | undefined, assignment: AssignmentMeta): string {
   if (!entry) return '—'
 
@@ -341,7 +348,8 @@ export function CourseGradebookPage() {
     const student = filteredStudents[rowIndex]
     if (!student) return
     const currentValue = normalizeCompletionStatus(current)
-    const nextValue = currentValue === 'complete' ? 'incomplete' : 'complete'
+    const nextValue = nextCompletionStatus(currentValue)
+    const nextStatus = nextValue === 'missing' ? 'missing' : nextValue === 'excused' ? 'excused' : 'graded'
 
     setActiveCell({ row: rowIndex, col: colIndex })
     openCellEditor(rowIndex, colIndex, assignment, current)
@@ -349,7 +357,7 @@ export function CourseGradebookPage() {
       await api.post(`/courses/${courseId}/assignments/${assignment.id}/grades`, {
         student_id: student.student_id,
         completion_status: nextValue,
-        status: 'graded',
+        status: nextStatus,
       })
       await loadGradebook()
     } catch (err) {
@@ -556,7 +564,7 @@ export function CourseGradebookPage() {
               <option value="desc">Descending</option>
             </select>
           </div>
-          <p className="subtitle">Keyboard: arrows/tab to move, Enter/F2/type to edit, Space toggles completion. Drag headers to reorder columns.</p>
+          <p className="subtitle">Keyboard: arrows/tab to move, Enter/F2/type to edit, Space cycles completion states (Complete -&gt; Incomplete -&gt; Missing -&gt; Excused). Drag headers to reorder columns.</p>
         </article>
 
         <article className="card">

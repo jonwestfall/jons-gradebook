@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import Counter
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import exists, func, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.db.models import (
@@ -20,24 +20,50 @@ from app.db.models import (
     StudentTag,
 )
 from app.db.session import get_db
-from app.schemas.students import StudentAlertCreate, StudentAlertUpdate, StudentNotesUpdate, StudentTagCreate
+from app.schemas.students import (
+    StudentAlertCreate,
+    StudentAlertUpdate,
+    StudentNotesUpdate,
+    StudentProfileUpdate,
+    StudentTagCreate,
+)
 
 router = APIRouter(prefix="/students", tags=["students"])
 
 
 @router.get("/")
 def list_students(db: Session = Depends(get_db)) -> list[dict]:
-    students = db.scalars(select(StudentProfile).order_by(StudentProfile.last_name.asc(), StudentProfile.first_name.asc())).all()
+    has_class_enrollment = exists(select(1).where(Enrollment.student_id == StudentProfile.id))
+    is_advisee = exists(select(1).where(Advisee.student_profile_id == StudentProfile.id))
+    latest_interaction_at = (
+        select(func.max(InteractionLog.occurred_at))
+        .where(InteractionLog.student_profile_id == StudentProfile.id)
+        .scalar_subquery()
+    )
+
+    rows = db.execute(
+        select(
+            StudentProfile,
+            has_class_enrollment.label("has_class_enrollment"),
+            is_advisee.label("is_advisee"),
+            latest_interaction_at.label("latest_interaction_at"),
+        ).order_by(StudentProfile.last_name.asc(), StudentProfile.first_name.asc())
+    ).all()
+
     return [
         {
             "id": student.id,
             "first_name": student.first_name,
             "last_name": student.last_name,
             "email": student.email,
+            "phone_number": student.phone_number,
             "student_number": student.student_number,
             "canvas_user_id": student.canvas_user_id,
+            "has_class_enrollment": bool(has_class_enrollment),
+            "is_advisee": bool(is_advisee),
+            "latest_interaction_at": latest_interaction_at.isoformat() if latest_interaction_at else None,
         }
-        for student in students
+        for student, has_class_enrollment, is_advisee, latest_interaction_at in rows
     ]
 
 
@@ -193,7 +219,10 @@ def student_profile(student_id: int, db: Session = Depends(get_db)) -> dict:
         "student": {
             "id": student.id,
             "name": f"{student.first_name} {student.last_name}",
+            "first_name": student.first_name,
+            "last_name": student.last_name,
             "email": student.email,
+            "phone_number": student.phone_number,
             "student_number": student.student_number,
             "institution_name": student.institution_name,
             "notes": student.notes,
@@ -255,6 +284,28 @@ def update_student_notes(student_id: int, payload: StudentNotesUpdate, db: Sessi
     db.commit()
     db.refresh(student)
     return {"student_id": student.id, "notes": student.notes}
+
+
+@router.patch("/{student_id}/profile-fields")
+def update_student_profile_fields(student_id: int, payload: StudentProfileUpdate, db: Session = Depends(get_db)) -> dict:
+    student = db.get(StudentProfile, student_id)
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+
+    student.first_name = payload.first_name.strip()
+    student.last_name = payload.last_name.strip()
+    student.email = payload.email.strip() if payload.email else None
+    student.phone_number = payload.phone_number.strip() if payload.phone_number else None
+
+    db.commit()
+    db.refresh(student)
+    return {
+        "id": student.id,
+        "first_name": student.first_name,
+        "last_name": student.last_name,
+        "email": student.email,
+        "phone_number": student.phone_number,
+    }
 
 
 @router.post("/{student_id}/alerts")

@@ -116,6 +116,7 @@ class StudentProfile(Base, TimestampMixin):
     first_name: Mapped[str] = mapped_column(String(120), nullable=False)
     last_name: Mapped[str] = mapped_column(String(120), nullable=False)
     email: Mapped[Optional[str]] = mapped_column(String(255), index=True)
+    phone_number: Mapped[Optional[str]] = mapped_column(String(32))
     student_number: Mapped[Optional[str]] = mapped_column(String(64), index=True)
     institution_name: Mapped[Optional[str]] = mapped_column(String(255))
     notes: Mapped[Optional[str]] = mapped_column(Text)
