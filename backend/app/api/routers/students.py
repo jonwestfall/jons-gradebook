@@ -30,6 +30,7 @@ from app.schemas.students import (
     StudentProfileUpdate,
     StudentTagCreate,
 )
+from app.services.risk import compute_student_risk
 
 router = APIRouter(prefix="/students", tags=["students"])
 
@@ -307,6 +308,25 @@ def student_profile(student_id: int, db: Session = Depends(get_db)) -> dict:
             for meeting in advising_meetings
         ],
         "grade_overview": grade_overview,
+    }
+
+
+@router.get("/{student_id}/risk")
+def student_risk(student_id: int, db: Session = Depends(get_db)) -> dict:
+    try:
+        risk = compute_student_risk(db, student_id=student_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {
+        "student_id": risk.student_id,
+        "student_name": risk.student_name,
+        "risk_score": risk.risk_score,
+        "level": risk.level,
+        "missing_assignments": risk.missing_assignments,
+        "attendance_absence_rate": risk.attendance_absence_rate,
+        "current_percent": risk.current_percent,
+        "days_since_interaction": risk.days_since_interaction,
+        "reasons": risk.reasons,
     }
 
 

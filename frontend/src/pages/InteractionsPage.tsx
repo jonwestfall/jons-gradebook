@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { api } from '../api/client'
+import { readLocalStorage, writeLocalStorage } from '../utils/storage'
 
 type Interaction = {
   id: number
@@ -19,6 +20,17 @@ type InteractionTargets = {
   students: { id: number; name: string; email?: string | null }[]
   courses: { id: number; name: string; section_name?: string | null; student_count: number }[]
   advisees: { id: number; name: string; student_profile_id?: number | null }[]
+}
+
+type SavedInteractionView = {
+  name: string
+  search: string
+  startDate: string
+  endDate: string
+  filterType: string
+  sortBy: 'occurred_at' | 'interaction_type' | 'summary' | 'id'
+  sortOrder: 'asc' | 'desc'
+  limit: number
 }
 
 const interactionTypeOptions = [
@@ -60,6 +72,10 @@ export function InteractionsPage() {
   const [sortBy, setSortBy] = useState<'occurred_at' | 'interaction_type' | 'summary' | 'id'>('occurred_at')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
   const [limit, setLimit] = useState(400)
+  const [savedViews, setSavedViews] = useState<SavedInteractionView[]>([])
+  const [viewName, setViewName] = useState('')
+
+  const viewStorageKey = 'interactions_saved_views'
 
   async function loadTargets() {
     const targetRows = await api.get<InteractionTargets>('/interactions/targets')
@@ -74,8 +90,55 @@ export function InteractionsPage() {
     const categories = settings.interaction_categories || []
     setConfiguredInteractionTypes(categories)
     if (categories.length > 0 && !categories.includes(interactionType)) {
-        setInteractionType(categories[0])
+      setInteractionType(categories[0])
     }
+  }
+
+  function persistViews(next: SavedInteractionView[]) {
+    setSavedViews(next)
+    writeLocalStorage(viewStorageKey, JSON.stringify(next))
+  }
+
+  function saveCurrentView() {
+    const name = viewName.trim()
+    if (!name) return
+    const withoutSame = savedViews.filter((view) => view.name.toLowerCase() !== name.toLowerCase())
+    const nextView: SavedInteractionView = {
+      name,
+      search,
+      startDate,
+      endDate,
+      filterType,
+      sortBy,
+      sortOrder,
+      limit,
+    }
+    persistViews([nextView, ...withoutSame].slice(0, 12))
+    setViewName('')
+  }
+
+  function applyView(view: SavedInteractionView) {
+    setSearch(view.search)
+    setStartDate(view.startDate)
+    setEndDate(view.endDate)
+    setFilterType(view.filterType)
+    setSortBy(view.sortBy)
+    setSortOrder(view.sortOrder)
+    setLimit(view.limit)
+    void loadInteractions({
+      search: view.search,
+      startDate: view.startDate,
+      endDate: view.endDate,
+      filterType: view.filterType,
+      sortBy: view.sortBy,
+      sortOrder: view.sortOrder,
+      limit: view.limit,
+    })
+  }
+
+  function deleteView(name: string) {
+    const next = savedViews.filter((view) => view.name !== name)
+    persistViews(next)
   }
 
   async function loadInteractions(
@@ -126,6 +189,17 @@ export function InteractionsPage() {
 
   useEffect(() => {
     void Promise.all([loadTargets(), loadInteractions(), loadSettings()])
+    const raw = readLocalStorage(viewStorageKey)
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw) as SavedInteractionView[]
+        if (Array.isArray(parsed)) {
+          setSavedViews(parsed)
+        }
+      } catch {
+        // no-op
+      }
+    }
   }, [])
 
   const scopeOptions = useMemo(() => {
@@ -225,7 +299,7 @@ export function InteractionsPage() {
         </form>
       </article>
 
-      <article className="card" style={{ marginTop: '0.8rem' }}>
+      <article className="card action-bar" style={{ marginTop: '0.8rem' }}>
         <h3>Find Interactions</h3>
         <div className="gradebook-toolbar compact-grid">
           <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search summary/notes" />
@@ -274,12 +348,29 @@ export function InteractionsPage() {
             Clear
           </button>
         </div>
+        <div className="gradebook-toolbar compact-grid" style={{ marginTop: '0.5rem' }}>
+          <input
+            value={viewName}
+            onChange={(event) => setViewName(event.target.value)}
+            placeholder="Save this filter set as..."
+          />
+          <button type="button" onClick={saveCurrentView}>Save View</button>
+        </div>
+        <div className="chip-row" style={{ marginTop: '0.5rem' }}>
+          {savedViews.map((view) => (
+            <span key={view.name} className="chip">
+              <button type="button" onClick={() => applyView(view)}>{view.name}</button>
+              <button type="button" onClick={() => deleteView(view.name)} title={`Delete view ${view.name}`}>x</button>
+            </span>
+          ))}
+          {savedViews.length === 0 ? <span className="table-subtle">No saved views yet.</span> : null}
+        </div>
       </article>
 
       {error ? <p className="error">{error}</p> : null}
 
       <article className="card students-grid-wrap" style={{ marginTop: '0.8rem' }}>
-        <table className="students-grid-table">
+        <table className="students-grid-table prioritize-mobile">
           <thead>
             <tr>
               <th>Date</th>

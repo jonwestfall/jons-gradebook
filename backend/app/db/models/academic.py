@@ -249,6 +249,26 @@ class GradeEntry(Base, TimestampMixin):
 
     assignment = relationship("Assignment", back_populates="grade_entries")
     student = relationship("StudentProfile", back_populates="grades")
+    audits = relationship("GradeEntryAudit", back_populates="grade_entry", cascade="all, delete-orphan")
+
+
+class GradeEntryAudit(Base, TimestampMixin):
+    __tablename__ = "grade_entry_audits"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    course_id: Mapped[int] = mapped_column(ForeignKey("courses.id", ondelete="CASCADE"), nullable=False, index=True)
+    assignment_id: Mapped[int] = mapped_column(ForeignKey("assignments.id", ondelete="CASCADE"), nullable=False, index=True)
+    student_id: Mapped[int] = mapped_column(ForeignKey("student_profiles.id", ondelete="CASCADE"), nullable=False, index=True)
+    grade_entry_id: Mapped[Optional[int]] = mapped_column(ForeignKey("grade_entries.id", ondelete="SET NULL"), index=True)
+    action: Mapped[str] = mapped_column(String(40), nullable=False, default="upsert")
+    before_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    after_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    was_undone: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+    course = relationship("Course")
+    assignment = relationship("Assignment")
+    student = relationship("StudentProfile")
+    grade_entry = relationship("GradeEntry", back_populates="audits")
 
 
 class GradebookCalculatedColumn(Base, TimestampMixin):

@@ -1,6 +1,6 @@
 # Jon's Gradebook
 
-Single-user Docker-deployable web application for gradebook operations, advising, attendance, document workflows, and de-identified LLM analysis.
+Single-user, Docker-deployable instructor/advisor cockpit for gradebook operations, student follow-up, advising workflows, document handling, and de-identified LLM analysis.
 
 ## Stack
 
@@ -51,58 +51,100 @@ npm install
 npm run dev
 ```
 
-## Key Features Included in This Scaffold
+## Current Product Capabilities (V2 Workflow Hardening)
 
-- Read-only Canvas sync (manual + daily scheduled)
-- Historical snapshots of Canvas payloads
-- Course-level merged gradebook (Canvas + local assignments)
-- Assignment match suggestions (name + due date + points)
-- Canvas-authoritative confirm flow archives and hides local twin
-- Reusable grade rules (`drop_lowest_in_group`, `required_completion_gate` warning)
-- Student profile across classes
-- Separate advising entities (including non-enrolled advisees)
-- Attendance with generated class meetings from weekly schedules
-- Interaction logs across attendance/advising/office/manual/email/file contexts
-- Rubrics/checklists/scoring guides and evaluations
-- PDF + PNG student report generation
-- Document storage with original encrypted file + extracted text + versioning
-- LLM workflow with OpenAI/Ollama/Gemini via de-identification preview-first flow
-- Persistent editable LLM outputs
-- Encrypted backup artifact generation
+### Instructor triage + operations
+
+- Action Dashboard with operational cards and top-risk students
+- Task Queue with filters, inline status/priority updates, and intervention rule execution
+- Rules-based intervention task generation from student risk signals
+
+### Gradebook workflow
+
+- Merged gradebook (Canvas + local) with local-first editing
+- Assignment match queue workbench (`suggest/list/confirm/reject/bulk/history`)
+- Grade audit timeline with undo support for recent edits
+- "Message Students Who..." workflow (not submitted, not graded, missing, score bands)
+- Saved gradebook views, keyboard-first editing, and density mode
+
+### Advising + interactions
+
+- Advisee roster plus meeting timeline
+- Advising meeting capture with action items and quick convert-to-task
+- Interaction logging across student, course cohort, and advisee scopes
+- Saved interaction views
+
+### Documents + reporting
+
+- Encrypted document storage with extracted text and versioning
+- Document quick preview (inline PDF + extracted text side panel)
+- PDF/PNG report generation with branding templates
+
+### Platform + safety
+
+- Read-only Canvas sync with historical snapshots and run events
+- Encrypted backup artifacts with restore preflight safety checks
+- Field-level sensitive data encryption + encrypted file blobs
+- De-identification preview-first LLM workflow
+
+## Application Routes (Frontend)
+
+- `/` Action Dashboard
+- `/tasks` Task Queue
+- `/canvas-sync` Canvas sync operations
+- `/courses` Courses list
+- `/courses/:courseId/gradebook` Gradebook workbench
+- `/courses/:courseId/matches` Match Queue Workbench
+- `/students` Students
+- `/students/:studentId` Student profile
+- `/advising` Advising + meetings
+- `/attendance` Attendance
+- `/interactions` Interactions
+- `/documents` Documents
+- `/reports` Reports
+- `/settings` Settings and operations
 
 ## API Prefix
 
 All endpoints are under `/api/v1`.
 
-## Project Docs
+## Testing + Validation
 
-- Phased implementation plan: `docs/PHASED_IMPLEMENTATION_PLAN.md`
-- Running changelog (commit-tied): `docs/CHANGELOG.md`
-- V1 QA checklist + execution template: `docs/V1_QA_CHECKLIST.md`
+### Frontend
 
-## V1 Status (Quick Reminder)
+```bash
+cd frontend
+npm run test
+npm run build
+```
 
-V1 is marked complete and accepted as the baseline release.
+- Uses Vitest + Testing Library smoke tests for key route/workflow load.
 
-Current focus has moved to V2 workflow hardening:
+### Backend
 
-- backup completion (scheduled backups + full restore execution flow from one artifact)
-- gradebook workflow hardening (assignment match queue UI + Canvas-authoritative decision history UI)
-- Canvas sync hardening polish (deleted-item edge cases + audit readability)
-- expanded reliability/test gates (migrations, scheduler, critical flow regressions)
+```bash
+cd /Users/jon/projects/git/jons-gradebook
+python3 -m compileall backend/app
+```
+
+- Compile check is currently the lightweight gate in-repo.
+- Expanded backend automated tests are tracked in `docs/TESTING_STRATEGY.md`.
+
+## Documentation Map
+
+- [Phased implementation plan](docs/PHASED_IMPLEMENTATION_PLAN.md)
+- [Future features backlog](docs/NEXT_PHASE_FEATURE_BACKLOG.md)
+- [Testing strategy](docs/TESTING_STRATEGY.md)
+- [V1 baseline QA checklist](docs/V1_QA_CHECKLIST.md)
+- [V2 workflow QA checklist](docs/V2_WORKFLOW_QA_CHECKLIST.md)
+- [Running changelog](docs/CHANGELOG.md)
 
 ## Notes
 
-- V1 is trusted single-user/no-login by design; there is no multi-user auth subsystem yet.
-- V1 encryption scope is field-level encryption for sensitive columns plus encrypted file blobs for stored attachments/documents.
-- Canvas token scopes for the user's classes are confirmed for read/write, but Canvas write-back remains deferred to V3.
-- V1 backup/restore target is full system restore from one artifact.
-- Selected-course sync supports both persistent allowlists and per-run course selection.
-- Reminders are in-app only in V1; outbound email via SMTP is planned for a later phase.
-- Report branding supports a global default template with per-course overrides.
-- De-identified prompts and de-identification mapping tables are exportable/auditable by default.
-- The Alembic initial migration creates the full metadata model for rapid iteration.
-- Canvas write-back is intentionally not implemented yet, but provider boundaries are set up for V3.
+- Trusted single-user architecture is intentional for near-term velocity.
+- Canvas write-back remains deferred to later phases.
+- In-app workflows are primary; external messaging delivery is future-phase.
+- Run `alembic upgrade head` after pulling new backend changes (includes task + grade audit tables).
 
 ## Troubleshooting (Windows)
 

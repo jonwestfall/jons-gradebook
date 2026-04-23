@@ -18,10 +18,20 @@ DEFAULT_INTERACTION_CATEGORIES = [
     "File Upload",
     "Advising Meeting",
 ]
+DEFAULT_INTERVENTION_RULES = [
+    {
+        "name": "missing-and-low-grade",
+        "min_score": 60,
+        "priority": "high",
+        "due_days": 2,
+        "template": "Follow up with student on missing work and recovery plan.",
+    }
+]
 
 OPTION_DEFAULTS = {
     "document_categories": DEFAULT_DOCUMENT_CATEGORIES,
     "interaction_categories": DEFAULT_INTERACTION_CATEGORIES,
+    "intervention_rules": DEFAULT_INTERVENTION_RULES,
 }
 
 
@@ -47,6 +57,7 @@ def list_settings_options(db: Session = Depends(get_db)) -> dict:
     return {
         "document_categories": by_key.get("document_categories", DEFAULT_DOCUMENT_CATEGORIES),
         "interaction_categories": by_key.get("interaction_categories", DEFAULT_INTERACTION_CATEGORIES),
+        "intervention_rules": by_key.get("intervention_rules", DEFAULT_INTERVENTION_RULES),
     }
 
 
@@ -55,15 +66,22 @@ def update_settings_option(key: str, payload: dict, db: Session = Depends(get_db
     if key not in OPTION_DEFAULTS:
         raise HTTPException(status_code=404, detail="Unsupported settings option key")
 
-    values = payload.get("values")
-    if not isinstance(values, list):
-        raise HTTPException(status_code=400, detail="values must be a list of strings")
-
-    normalized = _normalize_list([str(item) for item in values])
-    if not normalized:
-        normalized = OPTION_DEFAULTS[key]
-
     row = db.scalar(select(AppOption).where(AppOption.key == key))
+
+    if key == "intervention_rules":
+        values = payload.get("values")
+        if not isinstance(values, list):
+            raise HTTPException(status_code=400, detail="values must be a list")
+        normalized = values or OPTION_DEFAULTS[key]
+    else:
+        values = payload.get("values")
+        if not isinstance(values, list):
+            raise HTTPException(status_code=400, detail="values must be a list of strings")
+
+        normalized = _normalize_list([str(item) for item in values])
+        if not normalized:
+            normalized = OPTION_DEFAULTS[key]
+
     if not row:
         row = AppOption(key=key, value_json=normalized)
         db.add(row)

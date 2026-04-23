@@ -1,5 +1,11 @@
 # V1 QA Checklist
 
+Status note (2026-04-23): V1 remains the accepted baseline checklist.
+
+For active workflow-hardening validation (match queue, tasks, audit/undo, advising meetings, and quick preview), use:
+- `docs/V2_WORKFLOW_QA_CHECKLIST.md`
+- `docs/TESTING_STRATEGY.md`
+
 Use this checklist to validate V1 end-to-end before release or major merge.
 
 ## How To Use

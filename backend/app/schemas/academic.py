@@ -116,3 +116,18 @@ class CalculatedColumnUpdate(BaseModel):
 class GradebookColumnReorderRequest(BaseModel):
     assignment_order: list[int] = Field(default_factory=list)
     calculated_column_order: list[int] = Field(default_factory=list)
+
+
+MessageFilterKind = Literal["not_submitted", "not_graded", "score_below", "score_above", "missing"]
+
+
+class MessageStudentsRequest(BaseModel):
+    assignment_id: int
+    filter_kind: MessageFilterKind
+    threshold: float | None = None
+    include_excused: bool = False
+    subject: str = Field(min_length=1, max_length=255)
+    message: str = Field(min_length=1)
+    template_name: str | None = Field(default=None, max_length=120)
+    recurrence_days: int | None = Field(default=None, ge=1, le=30)
+    create_followup_tasks: bool = False

@@ -1,6 +1,7 @@
 import { FormEvent, KeyboardEvent, useEffect, useMemo, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { api } from '../api/client'
+import { readLocalStorage, writeLocalStorage } from '../utils/storage'
 
 type AssignmentMeta = {
   id: number
@@ -62,6 +63,37 @@ type ActiveEditor = {
 type ColumnDef =
   | { kind: 'assignment'; id: number; assignment: AssignmentMeta }
   | { kind: 'calculated'; id: number; calculated: CalculatedColumn }
+
+type GradeAudit = {
+  id: number
+  assignment_id: number
+  assignment_title?: string | null
+  student_id: number
+  student_name?: string | null
+  action: string
+  before: Record<string, unknown>
+  after: Record<string, unknown>
+  was_undone: boolean
+  created_at: string
+}
+
+type MessageFilterKind = 'not_submitted' | 'not_graded' | 'missing' | 'score_below' | 'score_above'
+
+type MessageCandidate = {
+  student_id: number
+  student_name: string
+  status: string
+  score?: number | null
+  reason: string
+}
+
+type SavedGradebookView = {
+  name: string
+  studentSearch: string
+  assignmentSearch: string
+  rowSortColumn: 'student_lastname' | 'student_name' | 'percent'
+  rowSortDirection: 'asc' | 'desc'
+}
 
 function parseName(fullName: string) {
   const parts = fullName.trim().split(/\s+/)
@@ -158,6 +190,26 @@ export function CourseGradebookPage() {
   const [detailsPaneExpanded, setDetailsPaneExpanded] = useState(false)
   const [showReorderArrows, setShowReorderArrows] = useState(false)
 
+  const [audits, setAudits] = useState<GradeAudit[]>([])
+  const [loadingAudits, setLoadingAudits] = useState(false)
+  const [undoBusyId, setUndoBusyId] = useState<number | null>(null)
+
+  const [messageAssignmentId, setMessageAssignmentId] = useState<number | null>(null)
+  const [messageFilterKind, setMessageFilterKind] = useState<MessageFilterKind>('not_submitted')
+  const [messageThreshold, setMessageThreshold] = useState('70')
+  const [messageIncludeExcused, setMessageIncludeExcused] = useState(false)
+  const [messageSubject, setMessageSubject] = useState('Gradebook follow-up')
+  const [messageBody, setMessageBody] = useState('Please review your assignment status and follow up if you need support.')
+  const [messageTemplateName, setMessageTemplateName] = useState('General reminder')
+  const [messageRecurrenceDays, setMessageRecurrenceDays] = useState('7')
+  const [messageCreateTask, setMessageCreateTask] = useState(true)
+  const [messageCandidates, setMessageCandidates] = useState<MessageCandidate[]>([])
+  const [messageBusy, setMessageBusy] = useState(false)
+  const [messageResult, setMessageResult] = useState<string | null>(null)
+
+  const [savedViews, setSavedViews] = useState<SavedGradebookView[]>([])
+  const [viewName, setViewName] = useState('')
+
   async function loadGradebook() {
     if (!courseId) return
     try {
@@ -165,14 +217,59 @@ export function CourseGradebookPage() {
       setGradebook(data)
       setAssignmentOrder(data.assignments.map((a) => a.id))
       setCalculatedOrder(data.calculated_columns.map((c) => c.id))
+      if (!messageAssignmentId && data.assignments.length > 0) {
+        setMessageAssignmentId(data.assignments[0].id)
+      }
       setError(null)
     } catch (err) {
       setError((err as Error).message)
     }
   }
 
+  async function loadAudits() {
+    if (!courseId) return
+    setLoadingAudits(true)
+    try {
+      const rows = await api.get<GradeAudit[]>(`/courses/${courseId}/grade-audits?limit=120`)
+      setAudits(rows)
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setLoadingAudits(false)
+    }
+  }
+
+  async function undoAudit(auditId: number) {
+    if (!courseId) return
+    setUndoBusyId(auditId)
+    setError(null)
+    try {
+      await api.post(`/courses/${courseId}/grade-audits/${auditId}/undo`)
+      await Promise.all([loadGradebook(), loadAudits()])
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setUndoBusyId(null)
+    }
+  }
+
   useEffect(() => {
-    void loadGradebook()
+    void Promise.all([loadGradebook(), loadAudits()])
+  }, [courseId])
+
+  useEffect(() => {
+    const key = courseId ? `gradebook_saved_views:${courseId}` : null
+    if (!key) return
+    const raw = readLocalStorage(key)
+    if (!raw) return
+    try {
+      const parsed = JSON.parse(raw) as SavedGradebookView[]
+      if (Array.isArray(parsed)) {
+        setSavedViews(parsed)
+      }
+    } catch {
+      // ignore malformed local storage payload
+    }
   }, [courseId])
 
   const orderedAssignments = useMemo(() => {
@@ -230,6 +327,90 @@ export function CourseGradebookPage() {
     if (!gradebook) return 0
     return gradebook.students.flatMap((s) => s.assignments).filter((a) => a.is_out_of_sync).length
   }, [gradebook])
+
+  function persistViews(next: SavedGradebookView[]) {
+    setSavedViews(next)
+    if (!courseId) return
+    writeLocalStorage(`gradebook_saved_views:${courseId}`, JSON.stringify(next))
+  }
+
+  function saveCurrentView() {
+    const name = viewName.trim()
+    if (!name) return
+    const nextView: SavedGradebookView = {
+      name,
+      studentSearch,
+      assignmentSearch,
+      rowSortColumn,
+      rowSortDirection,
+    }
+    const merged = [nextView, ...savedViews.filter((view) => view.name.toLowerCase() !== name.toLowerCase())].slice(0, 12)
+    persistViews(merged)
+    setViewName('')
+  }
+
+  function applySavedView(view: SavedGradebookView) {
+    setStudentSearch(view.studentSearch)
+    setAssignmentSearch(view.assignmentSearch)
+    setRowSortColumn(view.rowSortColumn)
+    setRowSortDirection(view.rowSortDirection)
+  }
+
+  function deleteSavedView(name: string) {
+    persistViews(savedViews.filter((view) => view.name !== name))
+  }
+
+  async function previewMessageCandidates() {
+    if (!courseId || !messageAssignmentId) return
+    setMessageBusy(true)
+    setError(null)
+    setMessageResult(null)
+    try {
+      const params = new URLSearchParams({
+        assignment_id: String(messageAssignmentId),
+        filter_kind: messageFilterKind,
+      })
+      if (messageThreshold.trim()) params.set('threshold', messageThreshold.trim())
+      if (messageIncludeExcused) params.set('include_excused', 'true')
+      const response = await api.get<{ count: number; candidates: MessageCandidate[] }>(
+        `/courses/${courseId}/message-candidates?${params.toString()}`,
+      )
+      setMessageCandidates(response.candidates || [])
+      setMessageResult(`Preview loaded: ${response.count} students.`)
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setMessageBusy(false)
+    }
+  }
+
+  async function sendMessagesToCandidates() {
+    if (!courseId || !messageAssignmentId) return
+    setMessageBusy(true)
+    setError(null)
+    setMessageResult(null)
+    try {
+      const response = await api.post<{ sent_count: number; task_count: number }>(`/courses/${courseId}/message-students`, {
+        assignment_id: messageAssignmentId,
+        filter_kind: messageFilterKind,
+        threshold: messageThreshold.trim() ? Number(messageThreshold) : null,
+        include_excused: messageIncludeExcused,
+        subject: messageSubject.trim(),
+        message: messageBody.trim(),
+        template_name: messageTemplateName.trim() || null,
+        recurrence_days: messageCreateTask ? Number(messageRecurrenceDays || '7') : null,
+        create_followup_tasks: messageCreateTask,
+      })
+      setMessageResult(
+        `Logged outreach for ${response.sent_count} students. Follow-up tasks created: ${response.task_count}.`,
+      )
+      await Promise.all([loadAudits(), loadGradebook()])
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setMessageBusy(false)
+    }
+  }
 
   async function persistColumnOrder(nextAssignmentOrder: number[], nextCalculatedOrder: number[]) {
     if (!courseId) return
@@ -329,7 +510,7 @@ export function CourseGradebookPage() {
       const nextRow = activeEditor.rowIndex
       const nextCol = Math.min(activeEditor.colIndex + 1, visibleColumns.length - 1)
       setActiveEditor(null)
-      await loadGradebook()
+      await Promise.all([loadGradebook(), loadAudits()])
       setActiveCell({ row: nextRow, col: nextCol })
     } catch (err) {
       setError((err as Error).message)
@@ -359,7 +540,7 @@ export function CourseGradebookPage() {
         completion_status: nextValue,
         status: nextStatus,
       })
-      await loadGradebook()
+      await Promise.all([loadGradebook(), loadAudits()])
     } catch (err) {
       setError((err as Error).message)
     }
@@ -524,12 +705,38 @@ export function CourseGradebookPage() {
       <p>
         Course: <strong>{gradebook.course.name}</strong>
       </p>
-      {outOfSyncCount > 0 ? (
-        <p className="warning">{outOfSyncCount} cells are locally overridden and not synchronized with Canvas.</p>
-      ) : null}
+      <article className="card action-bar">
+        <div className="gradebook-toolbar compact-grid">
+          <button type="button" onClick={() => void loadGradebook()}>Refresh Gradebook</button>
+          <button type="button" onClick={() => void loadAudits()} disabled={loadingAudits}>
+            {loadingAudits ? 'Loading Audits...' : 'Refresh Audit Log'}
+          </button>
+          <Link className="nav-link" to={`/courses/${gradebook.course.id}/matches`}>Open Match Queue</Link>
+          <div className="muted-badge">Out-of-sync overrides: {outOfSyncCount}</div>
+        </div>
+        <div className="gradebook-toolbar compact-grid" style={{ marginTop: '0.5rem' }}>
+          <input
+            value={viewName}
+            onChange={(event) => setViewName(event.target.value)}
+            placeholder="Save filter/sort view as..."
+          />
+          <button type="button" onClick={saveCurrentView}>Save View</button>
+        </div>
+        <div className="chip-row" style={{ marginTop: '0.5rem' }}>
+          {savedViews.map((view) => (
+            <span key={view.name} className="chip">
+              <button type="button" onClick={() => applySavedView(view)}>{view.name}</button>
+              <button type="button" onClick={() => deleteSavedView(view.name)} title={`Delete view ${view.name}`}>x</button>
+            </span>
+          ))}
+          {savedViews.length === 0 ? <span className="table-subtle">No saved views yet.</span> : null}
+        </div>
+      </article>
+
+      {outOfSyncCount > 0 ? <p className="warning">{outOfSyncCount} cells are locally overridden and not synchronized with Canvas.</p> : null}
       {error ? <p className="error">{error}</p> : null}
 
-      <article className="card">
+      <article className="card" style={{ marginTop: '0.8rem' }}>
         <h3>Create Local Assignment</h3>
         <form className="form gradebook-toolbar" onSubmit={createLocalAssignment}>
           <input value={newTitle} onChange={(event) => setNewTitle(event.target.value)} placeholder="Assignment title" required />
@@ -549,7 +756,7 @@ export function CourseGradebookPage() {
       </article>
 
       <div className="gradebook-layout">
-        <article className="card">
+        <article className="card action-bar">
           <h3>Filters</h3>
           <div className="gradebook-toolbar compact-grid">
             <input placeholder="Search students" value={studentSearch} onChange={(event) => setStudentSearch(event.target.value)} />
@@ -563,6 +770,11 @@ export function CourseGradebookPage() {
               <option value="asc">Ascending</option>
               <option value="desc">Descending</option>
             </select>
+          </div>
+          <div className="chip-row" style={{ marginTop: '0.5rem' }}>
+            {studentSearch.trim() ? <span className="chip">Student: {studentSearch}</span> : null}
+            {assignmentSearch.trim() ? <span className="chip">Assignment: {assignmentSearch}</span> : null}
+            <span className="chip">Sort: {rowSortColumn} ({rowSortDirection})</span>
           </div>
           <p className="subtitle">Keyboard: arrows/tab to move, Enter/F2/type to edit, Space cycles completion states (Complete -&gt; Incomplete -&gt; Missing -&gt; Excused). Drag headers to reorder columns.</p>
         </article>
@@ -792,6 +1004,146 @@ export function CourseGradebookPage() {
           </aside>
         ) : null}
       </div>
+
+      <div className="gradebook-layout" style={{ marginTop: '0.8rem' }}>
+        <article className="card">
+          <h3>Message Students Who...</h3>
+          <form
+            className="form"
+            onSubmit={(event) => {
+              event.preventDefault()
+              void sendMessagesToCandidates()
+            }}
+          >
+            <select
+              value={messageAssignmentId ?? ''}
+              onChange={(event) => setMessageAssignmentId(event.target.value ? Number(event.target.value) : null)}
+              required
+            >
+              {orderedAssignments.map((assignment) => (
+                <option key={assignment.id} value={assignment.id}>
+                  {assignment.title}
+                </option>
+              ))}
+            </select>
+            <select value={messageFilterKind} onChange={(event) => setMessageFilterKind(event.target.value as MessageFilterKind)}>
+              <option value="not_submitted">Not Submitted</option>
+              <option value="not_graded">Not Graded</option>
+              <option value="missing">Missing</option>
+              <option value="score_below">Score Below Threshold</option>
+              <option value="score_above">Score Above Threshold</option>
+            </select>
+            {messageFilterKind === 'score_below' || messageFilterKind === 'score_above' ? (
+              <input
+                type="number"
+                min="0"
+                max="100"
+                value={messageThreshold}
+                onChange={(event) => setMessageThreshold(event.target.value)}
+                placeholder="Threshold"
+              />
+            ) : null}
+            <input value={messageSubject} onChange={(event) => setMessageSubject(event.target.value)} placeholder="Subject" required />
+            <textarea value={messageBody} onChange={(event) => setMessageBody(event.target.value)} placeholder="Message template" required />
+            <input
+              value={messageTemplateName}
+              onChange={(event) => setMessageTemplateName(event.target.value)}
+              placeholder="Template name (optional)"
+            />
+            <label>
+              <input
+                type="checkbox"
+                checked={messageIncludeExcused}
+                onChange={(event) => setMessageIncludeExcused(event.target.checked)}
+              /> Include excused students
+            </label>
+            <label>
+              <input
+                type="checkbox"
+                checked={messageCreateTask}
+                onChange={(event) => setMessageCreateTask(event.target.checked)}
+              /> Create follow-up tasks
+            </label>
+            {messageCreateTask ? (
+              <input
+                type="number"
+                min="1"
+                max="30"
+                value={messageRecurrenceDays}
+                onChange={(event) => setMessageRecurrenceDays(event.target.value)}
+                placeholder="Follow-up task due in days"
+              />
+            ) : null}
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <button type="button" onClick={() => void previewMessageCandidates()} disabled={messageBusy}>
+                {messageBusy ? 'Working...' : 'Preview Recipients'}
+              </button>
+              <button type="submit" disabled={messageBusy || messageCandidates.length === 0}>
+                Send / Log Outreach
+              </button>
+            </div>
+          </form>
+          {messageResult ? <p>{messageResult}</p> : null}
+        </article>
+
+        <article className="card">
+          <h3>Message Preview</h3>
+          <ul className="list compact" style={{ maxHeight: '320px', overflow: 'auto' }}>
+            {messageCandidates.map((candidate) => (
+              <li key={candidate.student_id} className="card">
+                <strong>{candidate.student_name}</strong> — {candidate.reason}
+                <div className="table-subtle">
+                  Status: {candidate.status}
+                  {candidate.score !== undefined && candidate.score !== null ? ` | Score: ${candidate.score}` : ''}
+                </div>
+              </li>
+            ))}
+          </ul>
+          {messageCandidates.length === 0 ? <p>No preview loaded yet.</p> : null}
+        </article>
+      </div>
+
+      <article className="card" style={{ marginTop: '0.8rem' }}>
+        <h3>Recent Grade Changes (Audit + Undo)</h3>
+        {loadingAudits ? <p>Loading audit history...</p> : null}
+        <div className="students-grid-wrap">
+          <table className="students-grid-table">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Student</th>
+                <th>Assignment</th>
+                <th>Action</th>
+                <th>Before</th>
+                <th>After</th>
+                <th>Undo</th>
+              </tr>
+            </thead>
+            <tbody>
+              {audits.map((audit) => (
+                <tr key={audit.id}>
+                  <td>{new Date(audit.created_at).toLocaleString()}</td>
+                  <td>{audit.student_name || audit.student_id}</td>
+                  <td>{audit.assignment_title || audit.assignment_id}</td>
+                  <td>{audit.action}</td>
+                  <td>{JSON.stringify(audit.before || {})}</td>
+                  <td>{JSON.stringify(audit.after || {})}</td>
+                  <td>
+                    <button
+                      type="button"
+                      disabled={audit.was_undone || undoBusyId === audit.id}
+                      onClick={() => void undoAudit(audit.id)}
+                    >
+                      {audit.was_undone ? 'Undone' : undoBusyId === audit.id ? 'Undoing...' : 'Undo'}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {audits.length === 0 && !loadingAudits ? <p>No grade changes recorded yet.</p> : null}
+        </div>
+      </article>
 
       <article className="card" style={{ marginTop: '0.8rem' }}>
         <h3>Editor Options</h3>

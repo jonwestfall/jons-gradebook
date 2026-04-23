@@ -64,7 +64,10 @@ export function CoursesPage() {
             <div>Section: {course.section_name || 'N/A'}</div>
             <div>Term: {course.term_name || 'N/A'}</div>
             <div>Canvas ID: {course.canvas_course_id || 'Local-only'}</div>
-            <Link to={`/courses/${course.id}/gradebook`}>Open Gradebook</Link>
+            <div style={{ display: 'flex', gap: '0.6rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
+              <Link to={`/courses/${course.id}/gradebook`}>Open Gradebook</Link>
+              <Link to={`/courses/${course.id}/matches`}>Open Match Queue</Link>
+            </div>
           </li>
         ))}
       </ul>

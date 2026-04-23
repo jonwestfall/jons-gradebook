@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -11,14 +13,24 @@ from app.db.models import (
     AssignmentMatchSuggestion,
     AssignmentSource,
     ClassSchedule,
+    CompletionStatus,
     Course,
     CourseGradeRule,
+    Enrollment,
+    EnrollmentRole,
     GradebookCalculatedColumn,
     GradeEntry,
+    GradeEntryAudit,
     GradeSource,
     GradeStatus,
     GradeRuleTemplate,
+    InteractionLog,
+    InteractionType,
     MatchStatus,
+    StudentProfile,
+    Task,
+    TaskPriority,
+    TaskStatus,
 )
 from app.db.session import get_db
 from app.schemas.academic import (
@@ -33,6 +45,8 @@ from app.schemas.academic import (
     GradeEntryUpsert,
     GradebookColumnReorderRequest,
     GradeRuleTemplateCreate,
+    MessageStudentsRequest,
+    MessageFilterKind,
     MatchBulkActionRequest,
     MeetingGenerateRequest,
 )
@@ -41,6 +55,73 @@ from app.services.gradebook import build_merged_gradebook
 from app.services.matching import confirm_canvas_authoritative, reject_match_suggestion, suggest_matches_for_course
 
 router = APIRouter(prefix="/courses", tags=["courses"])
+
+
+def _serialize_grade_entry(entry: GradeEntry | None) -> dict:
+    if not entry:
+        return {}
+    return {
+        "source": entry.source.value,
+        "status": entry.status.value,
+        "score": entry.score,
+        "letter_grade": entry.letter_grade,
+        "completion_status": entry.completion_status.value if entry.completion_status else None,
+    }
+
+
+def _upsert_grade_from_snapshot(
+    db: Session,
+    *,
+    assignment: Assignment,
+    student_id: int,
+    snapshot: dict,
+) -> GradeEntry | None:
+    grade = db.scalar(
+        select(GradeEntry).where(
+            GradeEntry.assignment_id == assignment.id,
+            GradeEntry.student_id == student_id,
+        )
+    )
+
+    if not snapshot:
+        if grade:
+            db.delete(grade)
+        return None
+
+    try:
+        source = GradeSource(snapshot.get("source") or GradeSource.local.value)
+        status = GradeStatus(snapshot.get("status") or GradeStatus.graded.value)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid snapshot payload for undo") from exc
+
+    completion_status: CompletionStatus | None = None
+    raw_completion = snapshot.get("completion_status")
+    if raw_completion:
+        try:
+            completion_status = CompletionStatus(raw_completion)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="Invalid completion status in undo snapshot") from exc
+
+    payload = {
+        "source": source,
+        "status": status,
+        "score": snapshot.get("score"),
+        "letter_grade": snapshot.get("letter_grade"),
+        "completion_status": completion_status,
+    }
+
+    if not grade:
+        grade = GradeEntry(
+            assignment_id=assignment.id,
+            student_id=student_id,
+            **payload,
+        )
+        db.add(grade)
+        return grade
+
+    for key, value in payload.items():
+        setattr(grade, key, value)
+    return grade
 
 
 @router.get("/", response_model=list[CourseOut])
@@ -130,6 +211,8 @@ def upsert_assignment_grade(
         if payload.completion_status is None:
             raise HTTPException(status_code=400, detail="completion_status is required for completion grading")
 
+    before_snapshot = _serialize_grade_entry(grade)
+
     if not grade:
         grade = GradeEntry(
             assignment_id=assignment_id,
@@ -147,6 +230,22 @@ def upsert_assignment_grade(
         grade.score = payload.score if assignment.grading_type == AssignmentGradingType.points else None
         grade.letter_grade = payload.letter_grade if assignment.grading_type == AssignmentGradingType.letter else None
         grade.completion_status = payload.completion_status if assignment.grading_type == AssignmentGradingType.completion else None
+
+    db.flush()
+    after_snapshot = _serialize_grade_entry(grade)
+    action = "create" if not before_snapshot else "update"
+    db.add(
+        GradeEntryAudit(
+            course_id=course_id,
+            assignment_id=assignment_id,
+            student_id=payload.student_id,
+            grade_entry_id=grade.id,
+            action=action,
+            before_json=before_snapshot,
+            after_json=after_snapshot,
+            was_undone=False,
+        )
+    )
 
     db.commit()
     db.refresh(grade)
@@ -172,6 +271,86 @@ def merged_gradebook(
         return build_merged_gradebook(db, course_id=course_id, include_hidden=include_hidden)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get("/{course_id}/grade-audits")
+def list_grade_audits(
+    course_id: int,
+    student_id: int | None = Query(default=None),
+    assignment_id: int | None = Query(default=None),
+    limit: int = Query(default=200, ge=1, le=1000),
+    db: Session = Depends(get_db),
+) -> list[dict]:
+    query = select(GradeEntryAudit).where(GradeEntryAudit.course_id == course_id)
+    if student_id is not None:
+        query = query.where(GradeEntryAudit.student_id == student_id)
+    if assignment_id is not None:
+        query = query.where(GradeEntryAudit.assignment_id == assignment_id)
+    audits = db.scalars(query.order_by(GradeEntryAudit.created_at.desc()).limit(limit)).all()
+    if not audits:
+        return []
+
+    assignment_ids = sorted({audit.assignment_id for audit in audits})
+    student_ids = sorted({audit.student_id for audit in audits})
+    assignments = db.scalars(select(Assignment).where(Assignment.id.in_(assignment_ids))).all()
+    students = db.scalars(select(StudentProfile).where(StudentProfile.id.in_(student_ids))).all()
+    assignment_map = {assignment.id: assignment.title for assignment in assignments}
+    student_map = {student.id: f"{student.first_name} {student.last_name}".strip() for student in students}
+
+    return [
+        {
+            "id": audit.id,
+            "course_id": audit.course_id,
+            "assignment_id": audit.assignment_id,
+            "assignment_title": assignment_map.get(audit.assignment_id),
+            "student_id": audit.student_id,
+            "student_name": student_map.get(audit.student_id),
+            "grade_entry_id": audit.grade_entry_id,
+            "action": audit.action,
+            "before": audit.before_json,
+            "after": audit.after_json,
+            "was_undone": audit.was_undone,
+            "created_at": audit.created_at.isoformat(),
+        }
+        for audit in audits
+    ]
+
+
+@router.post("/{course_id}/grade-audits/{audit_id}/undo")
+def undo_grade_audit(course_id: int, audit_id: int, db: Session = Depends(get_db)) -> dict:
+    audit = db.get(GradeEntryAudit, audit_id)
+    if not audit or audit.course_id != course_id:
+        raise HTTPException(status_code=404, detail="Grade audit not found")
+    if audit.was_undone:
+        raise HTTPException(status_code=400, detail="This audit entry has already been undone")
+
+    assignment = db.get(Assignment, audit.assignment_id)
+    if not assignment or assignment.course_id != course_id:
+        raise HTTPException(status_code=404, detail="Assignment not found")
+
+    grade = _upsert_grade_from_snapshot(
+        db,
+        assignment=assignment,
+        student_id=audit.student_id,
+        snapshot=audit.before_json or {},
+    )
+    db.flush()
+
+    db.add(
+        GradeEntryAudit(
+            course_id=course_id,
+            assignment_id=audit.assignment_id,
+            student_id=audit.student_id,
+            grade_entry_id=grade.id if grade else None,
+            action="undo",
+            before_json=audit.after_json or {},
+            after_json=audit.before_json or {},
+            was_undone=False,
+        )
+    )
+    audit.was_undone = True
+    db.commit()
+    return {"undone": True, "audit_id": audit_id}
 
 
 @router.get("/{course_id}/calculated-columns")
@@ -404,6 +583,157 @@ def list_match_decision_history(course_id: int, db: Session = Depends(get_db)) -
         }
         for decision in decisions
     ]
+
+
+def _message_candidates_for_assignment(
+    db: Session,
+    *,
+    course_id: int,
+    assignment_id: int,
+    filter_kind: MessageFilterKind,
+    threshold: float | None,
+    include_excused: bool,
+) -> list[dict]:
+    assignment = db.get(Assignment, assignment_id)
+    if not assignment or assignment.course_id != course_id:
+        raise HTTPException(status_code=404, detail="Assignment not found")
+
+    students = db.scalars(
+        select(StudentProfile)
+        .join(StudentProfile.enrollments)
+        .where(Enrollment.course_id == course_id, Enrollment.role == EnrollmentRole.student)
+        .order_by(StudentProfile.last_name.asc(), StudentProfile.first_name.asc())
+    ).all()
+    if not students:
+        return []
+
+    grades = db.scalars(select(GradeEntry).where(GradeEntry.assignment_id == assignment_id)).all()
+    by_student = {grade.student_id: grade for grade in grades}
+    candidates: list[dict] = []
+    for student in students:
+        grade = by_student.get(student.id)
+        status = grade.status.value if grade else GradeStatus.unsubmitted.value
+        score = grade.score if grade else None
+
+        if not include_excused and status == GradeStatus.excused.value:
+            continue
+
+        include = False
+        reason = ""
+        if filter_kind == "not_submitted":
+            include = grade is None or status in {GradeStatus.unsubmitted.value, GradeStatus.missing.value}
+            reason = "no submission yet"
+        elif filter_kind == "not_graded":
+            include = grade is None or status != GradeStatus.graded.value
+            reason = "not graded yet"
+        elif filter_kind == "missing":
+            include = status == GradeStatus.missing.value
+            reason = "marked missing"
+        elif filter_kind == "score_below":
+            cutoff = threshold if threshold is not None else 70.0
+            include = score is not None and float(score) < cutoff
+            reason = f"score below {cutoff}"
+        elif filter_kind == "score_above":
+            cutoff = threshold if threshold is not None else 90.0
+            include = score is not None and float(score) > cutoff
+            reason = f"score above {cutoff}"
+        else:
+            raise HTTPException(status_code=400, detail="Unsupported filter_kind")
+
+        if include:
+            candidates.append(
+                {
+                    "student_id": student.id,
+                    "student_name": f"{student.first_name} {student.last_name}".strip(),
+                    "status": status,
+                    "score": score,
+                    "reason": reason,
+                }
+            )
+    return candidates
+
+
+@router.get("/{course_id}/message-candidates")
+def list_message_candidates(
+    course_id: int,
+    assignment_id: int = Query(...),
+    filter_kind: MessageFilterKind = Query(default="not_submitted"),
+    threshold: float | None = Query(default=None),
+    include_excused: bool = Query(default=False),
+    db: Session = Depends(get_db),
+) -> dict:
+    candidates = _message_candidates_for_assignment(
+        db,
+        course_id=course_id,
+        assignment_id=assignment_id,
+        filter_kind=filter_kind,
+        threshold=threshold,
+        include_excused=include_excused,
+    )
+    return {"count": len(candidates), "candidates": candidates}
+
+
+@router.post("/{course_id}/message-students")
+def message_students(course_id: int, payload: MessageStudentsRequest, db: Session = Depends(get_db)) -> dict:
+    course = db.get(Course, course_id)
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+
+    candidates = _message_candidates_for_assignment(
+        db,
+        course_id=course_id,
+        assignment_id=payload.assignment_id,
+        filter_kind=payload.filter_kind,
+        threshold=payload.threshold,
+        include_excused=payload.include_excused,
+    )
+    if not candidates:
+        return {"sent_count": 0, "task_count": 0, "student_ids": []}
+
+    now = datetime.now(timezone.utc)
+    task_count = 0
+    for row in candidates:
+        student_id = row["student_id"]
+        db.add(
+            InteractionLog(
+                student_profile_id=student_id,
+                interaction_type=InteractionType.email_log,
+                occurred_at=now,
+                summary=payload.subject,
+                notes=payload.message,
+                metadata_json={
+                    "target_scope": "student",
+                    "course_id": course_id,
+                    "course_name": course.name,
+                    "assignment_id": payload.assignment_id,
+                    "filter_kind": payload.filter_kind,
+                    "template_name": payload.template_name,
+                    "reason": row["reason"],
+                },
+            )
+        )
+        if payload.create_followup_tasks and payload.recurrence_days:
+            due_at = now + timedelta(days=payload.recurrence_days)
+            db.add(
+                Task(
+                    title=f"Follow-up reminder: {row['student_name']}",
+                    status=TaskStatus.open,
+                    priority=TaskPriority.medium,
+                    due_at=due_at,
+                    note=f"Follow up on message '{payload.subject}' for {row['reason']}.",
+                    linked_student_id=student_id,
+                    linked_course_id=course_id,
+                    source="message_recurrence",
+                )
+            )
+            task_count += 1
+
+    db.commit()
+    return {
+        "sent_count": len(candidates),
+        "task_count": task_count,
+        "student_ids": [row["student_id"] for row in candidates],
+    }
 
 
 @router.post("/rules/templates")

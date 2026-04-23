@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api/client'
+import { readLocalStorage, writeLocalStorage } from '../utils/storage'
 
 type Student = {
   id: number
@@ -14,15 +15,59 @@ type Student = {
   latest_interaction_at?: string | null
 }
 
+type SavedStudentView = {
+  name: string
+  search: string
+  scope: 'all' | 'in_classes' | 'advisees'
+  sortBy: 'last_name' | 'recent_interactions'
+}
+
 export function StudentsPage() {
   const [students, setStudents] = useState<Student[]>([])
   const [search, setSearch] = useState('')
   const [scope, setScope] = useState<'all' | 'in_classes' | 'advisees'>('all')
   const [sortBy, setSortBy] = useState<'last_name' | 'recent_interactions'>('last_name')
+  const [savedViews, setSavedViews] = useState<SavedStudentView[]>([])
+  const [viewName, setViewName] = useState('')
+
+  const storageKey = 'students_saved_views'
 
   useEffect(() => {
     api.get<Student[]>('/students/').then(setStudents).catch(console.error)
+    const raw = readLocalStorage(storageKey)
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw) as SavedStudentView[]
+        if (Array.isArray(parsed)) setSavedViews(parsed)
+      } catch {
+        // ignore parse errors
+      }
+    }
   }, [])
+
+  function persistViews(next: SavedStudentView[]) {
+    setSavedViews(next)
+    writeLocalStorage(storageKey, JSON.stringify(next))
+  }
+
+  function saveView() {
+    const name = viewName.trim()
+    if (!name) return
+    const next: SavedStudentView = { name, search, scope, sortBy }
+    const merged = [next, ...savedViews.filter((view) => view.name.toLowerCase() !== name.toLowerCase())].slice(0, 12)
+    persistViews(merged)
+    setViewName('')
+  }
+
+  function applyView(view: SavedStudentView) {
+    setSearch(view.search)
+    setScope(view.scope)
+    setSortBy(view.sortBy)
+  }
+
+  function deleteView(name: string) {
+    persistViews(savedViews.filter((view) => view.name !== name))
+  }
 
   const visibleStudents = useMemo(() => {
     const term = search.trim().toLowerCase()
@@ -70,10 +115,27 @@ export function StudentsPage() {
             <option value="recent_interactions">Sort: Most Recent Interactions</option>
           </select>
         </div>
+        <div className="gradebook-toolbar compact-grid" style={{ marginTop: '0.5rem' }}>
+          <input
+            value={viewName}
+            onChange={(event) => setViewName(event.target.value)}
+            placeholder="Save this student view as..."
+          />
+          <button type="button" onClick={saveView}>Save View</button>
+        </div>
+        <div className="chip-row" style={{ marginTop: '0.5rem' }}>
+          {savedViews.map((view) => (
+            <span key={view.name} className="chip">
+              <button type="button" onClick={() => applyView(view)}>{view.name}</button>
+              <button type="button" onClick={() => deleteView(view.name)} title={`Delete view ${view.name}`}>x</button>
+            </span>
+          ))}
+          {savedViews.length === 0 ? <span className="table-subtle">No saved views yet.</span> : null}
+        </div>
       </article>
 
       <article className="card students-grid-wrap">
-        <table className="students-grid-table">
+        <table className="students-grid-table prioritize-mobile">
           <thead>
             <tr>
               <th>Name</th>

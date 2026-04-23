@@ -16,6 +16,7 @@ from app.db.models.academic import (
     Enrollment,
     EnrollmentRole,
     GradeEntry,
+    GradeEntryAudit,
     GradebookCalculatedColumn,
     GradeRuleTemplate,
     GradeSource,
@@ -46,6 +47,7 @@ from app.db.models.documents import DocumentType, StoredDocument, StoredDocument
 from app.db.models.interactions import InteractionLog, InteractionType
 from app.db.models.llm import LLMOutput, LLMProvider, LLMRun, LLMRunStatus
 from app.db.models.settings import AppOption
+from app.db.models.tasks import Task, TaskPriority, TaskStatus
 from app.db.models.rubrics import (
     RubricCriterion,
     RubricCriterionRating,
@@ -78,6 +80,7 @@ __all__ = [
     "MatchDecisionAction",
     "GradeEntry",
     "GradebookCalculatedColumn",
+    "GradeEntryAudit",
     "GradeSource",
     "GradeStatus",
     "GradeRuleTemplate",
@@ -127,4 +130,7 @@ __all__ = [
     "LLMOutput",
     "BackupArtifact",
     "AppOption",
+    "Task",
+    "TaskStatus",
+    "TaskPriority",
 ]

@@ -22,6 +22,25 @@ If work is not committed yet, use `commit WORKTREE` temporarily and replace it a
 
 ---
 
+## 2026-04-23
+- [commit WORKTREE] [area: backend] Added new dashboard router and summary endpoint for action-first triage cards and top-risk students.
+- [commit WORKTREE] [area: backend] Added task model, schemas, migration, and task API (`list/create/update/delete/targets/rules-run`).
+- [commit WORKTREE] [area: backend] Added student risk service and student risk endpoint.
+- [commit WORKTREE] [area: backend] Added grade audit model plus course endpoints for audit listing and undo.
+- [commit WORKTREE] [area: backend] Added course messaging workflow endpoints for candidate preview and outreach logging with optional follow-up tasks.
+- [commit WORKTREE] [area: backend] Expanded advising meetings endpoint payloads for richer advising timeline UX.
+- [commit WORKTREE] [area: backend] Added settings support for `intervention_rules`.
+- [commit WORKTREE] [area: frontend] Added Task Queue page and route with filtering, inline updates, and intervention execution.
+- [commit WORKTREE] [area: frontend] Added Match Queue Workbench page and route with confidence bands, single/bulk actions, and decision history.
+- [commit WORKTREE] [area: frontend] Replaced static dashboard module list with action dashboard backed by live data.
+- [commit WORKTREE] [area: frontend] Enhanced gradebook with saved views, message-students workflow, grade audit panel, and undo actions.
+- [commit WORKTREE] [area: frontend] Enhanced advising with meeting capture, timeline, and convert-to-task flow.
+- [commit WORKTREE] [area: frontend] Added document quick preview (inline PDF + extracted text panel).
+- [commit WORKTREE] [area: frontend] Added saved views for students/interactions and URL-driven task filters.
+- [commit WORKTREE] [area: frontend] Added global UX speed features: icon-aware collapsed sidebar, command palette, density mode, sticky action bars, and mobile table-priority behavior.
+- [commit WORKTREE] [area: frontend/testing] Added Vitest test harness, setup files, and route/workflow smoke tests.
+- [commit WORKTREE] [area: docs] Refreshed README, phased plan, and testing/QA documentation for current and future scope.
+
 ## 2026-04-22
 - [commit 0b34447] [area: backup] Added backup restore preflight comparison endpoint and related restore-safety workflow support.
 - [commit 0b34447] [area: migrations] Fixed calculated column migration conflict by avoiding duplicate PostgreSQL enum type creation.

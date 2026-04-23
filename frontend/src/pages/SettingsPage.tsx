@@ -31,6 +31,14 @@ type RestorePreflight = {
   }[]
 }
 
+type InterventionRule = {
+  name: string
+  min_score: number
+  priority: 'low' | 'medium' | 'high'
+  due_days: number
+  template: string
+}
+
 export function SettingsPage() {
   const [backups, setBackups] = useState<BackupArtifact[]>([])
   const [selectedBackupId, setSelectedBackupId] = useState<number | null>(null)
@@ -43,8 +51,14 @@ export function SettingsPage() {
   const [preflight, setPreflight] = useState<RestorePreflight | null>(null)
   const [documentCategories, setDocumentCategories] = useState<string[]>([])
   const [interactionCategories, setInteractionCategories] = useState<string[]>([])
+  const [interventionRules, setInterventionRules] = useState<InterventionRule[]>([])
   const [newDocumentCategory, setNewDocumentCategory] = useState('')
   const [newInteractionCategory, setNewInteractionCategory] = useState('')
+  const [ruleName, setRuleName] = useState('missing-and-low-grade')
+  const [ruleMinScore, setRuleMinScore] = useState('60')
+  const [rulePriority, setRulePriority] = useState<'low' | 'medium' | 'high'>('high')
+  const [ruleDueDays, setRuleDueDays] = useState('2')
+  const [ruleTemplate, setRuleTemplate] = useState('Follow up with student on missing work and recovery plan.')
 
   async function loadBackups() {
     const data = await api.get<BackupArtifact[]>('/backup/')
@@ -57,9 +71,14 @@ export function SettingsPage() {
   }
 
   async function loadOptions() {
-    const options = await api.get<{ document_categories: string[]; interaction_categories: string[] }>('/settings/options')
+    const options = await api.get<{
+      document_categories: string[]
+      interaction_categories: string[]
+      intervention_rules: InterventionRule[]
+    }>('/settings/options')
     setDocumentCategories(options.document_categories || [])
     setInteractionCategories(options.interaction_categories || [])
+    setInterventionRules(options.intervention_rules || [])
   }
 
   async function loadBackupDetail(backupId: number) {
@@ -123,6 +142,11 @@ export function SettingsPage() {
 
   async function saveCategories(key: 'document_categories' | 'interaction_categories', values: string[]) {
     await api.put(`/settings/options/${key}`, { values })
+    await loadOptions()
+  }
+
+  async function saveRules(values: InterventionRule[]) {
+    await api.put('/settings/options/intervention_rules', { values })
     await loadOptions()
   }
 
@@ -302,6 +326,69 @@ export function SettingsPage() {
                 onClick={() =>
                   void saveCategories('interaction_categories', interactionCategories.filter((item) => item !== category))
                 }
+              >
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      </article>
+
+      <article className="card" style={{ marginTop: '0.8rem' }}>
+        <h3>Intervention Rules</h3>
+        <p className="subtitle">Rules generate tasks from student risk signals when you run the intervention engine.</p>
+        <div className="gradebook-toolbar compact-grid">
+          <input value={ruleName} onChange={(event) => setRuleName(event.target.value)} placeholder="Rule name" />
+          <input
+            type="number"
+            min="1"
+            max="100"
+            value={ruleMinScore}
+            onChange={(event) => setRuleMinScore(event.target.value)}
+            placeholder="Minimum risk score"
+          />
+          <select value={rulePriority} onChange={(event) => setRulePriority(event.target.value as 'low' | 'medium' | 'high')}>
+            <option value="high">High</option>
+            <option value="medium">Medium</option>
+            <option value="low">Low</option>
+          </select>
+          <input
+            type="number"
+            min="1"
+            max="30"
+            value={ruleDueDays}
+            onChange={(event) => setRuleDueDays(event.target.value)}
+            placeholder="Due days"
+          />
+          <input
+            value={ruleTemplate}
+            onChange={(event) => setRuleTemplate(event.target.value)}
+            placeholder="Task note template"
+          />
+          <button
+            onClick={() => {
+              const nextRule: InterventionRule = {
+                name: ruleName.trim() || 'custom-rule',
+                min_score: Number(ruleMinScore || '60'),
+                priority: rulePriority,
+                due_days: Number(ruleDueDays || '2'),
+                template: ruleTemplate.trim() || 'Follow up with student.',
+              }
+              void saveRules([nextRule, ...interventionRules.filter((rule) => rule.name !== nextRule.name)])
+            }}
+          >
+            Add / Update Rule
+          </button>
+        </div>
+        <ul className="list compact">
+          {interventionRules.map((rule) => (
+            <li key={rule.name} className="card">
+              <strong>{rule.name}</strong> (min score {rule.min_score}, {rule.priority}, due +{rule.due_days}d)
+              <div className="table-subtle">{rule.template}</div>
+              <button
+                onClick={() => {
+                  void saveRules(interventionRules.filter((item) => item.name !== rule.name))
+                }}
               >
                 Remove
               </button>

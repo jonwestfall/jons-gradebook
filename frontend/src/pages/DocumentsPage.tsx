@@ -36,6 +36,8 @@ type DocumentRow = {
   } | null
 }
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api/v1'
+
 export function DocumentsPage() {
   const [documents, setDocuments] = useState<DocumentRow[]>([])
   const [students, setStudents] = useState<StudentTarget[]>([])
@@ -58,6 +60,11 @@ export function DocumentsPage() {
   const [sortBy, setSortBy] = useState<'updated_at' | 'created_at' | 'title' | 'document_type' | 'current_version'>('updated_at')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
 
+  const [selectedDocument, setSelectedDocument] = useState<DocumentRow | null>(null)
+  const [previewText, setPreviewText] = useState('')
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
+
   const selectedStudentsLabel = useMemo(() => {
     if (selectedStudentIds.length === 0) return 'No linked students selected'
     return students
@@ -65,6 +72,14 @@ export function DocumentsPage() {
       .map((student) => student.name)
       .join(', ')
   }, [selectedStudentIds, students])
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl)
+      }
+    }
+  }, [previewUrl])
 
   async function loadTargets() {
     const response = await api.get<{
@@ -126,10 +141,42 @@ export function DocumentsPage() {
     }
   }
 
+  async function openPreview(document: DocumentRow) {
+    setPreviewLoading(true)
+    setError(null)
+    setSelectedDocument(document)
+    setPreviewText('')
+
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl)
+      setPreviewUrl(null)
+    }
+
+    try {
+      const [textPayload] = await Promise.all([
+        api.get<{ text: string }>(`/documents/${document.id}/text`),
+      ])
+      setPreviewText(textPayload.text || '')
+
+      if (document.document_type === 'pdf') {
+        const response = await fetch(`${API_BASE}/documents/${document.id}/download`)
+        if (!response.ok) {
+          throw new Error(`Preview download failed (${response.status})`)
+        }
+        const blob = await response.blob()
+        setPreviewUrl(URL.createObjectURL(blob))
+      }
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setPreviewLoading(false)
+    }
+  }
+
   return (
     <section>
       <h2>Documents</h2>
-      <p className="subtitle">Upload once, link to multiple students, and search/sort all stored documents from one view.</p>
+      <p className="subtitle">Upload once, link to multiple students, and preview extracted text and PDFs before download.</p>
 
       <article className="card">
         <h3>Upload Document</h3>
@@ -217,7 +264,7 @@ export function DocumentsPage() {
         </form>
       </article>
 
-      <article className="card" style={{ marginTop: '0.8rem' }}>
+      <article className="card action-bar" style={{ marginTop: '0.8rem' }}>
         <h3>Find Documents</h3>
         <div className="gradebook-toolbar compact-grid">
           <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by title" />
@@ -269,7 +316,7 @@ export function DocumentsPage() {
       {error ? <p className="error">{error}</p> : null}
 
       <article className="card students-grid-wrap" style={{ marginTop: '0.8rem' }}>
-        <table className="students-grid-table">
+        <table className="students-grid-table prioritize-mobile">
           <thead>
             <tr>
               <th>Title</th>
@@ -305,6 +352,7 @@ export function DocumentsPage() {
                 <td>{document.updated_at ? new Date(document.updated_at).toLocaleString() : 'N/A'}</td>
                 <td>
                   <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap' }}>
+                    <button type="button" onClick={() => void openPreview(document)}>Preview</button>
                     <a href={`/api/v1/documents/${document.id}/download`} target="_blank" rel="noreferrer">
                       Download
                     </a>
@@ -319,6 +367,29 @@ export function DocumentsPage() {
         </table>
         {documents.length === 0 ? <p>No documents found.</p> : null}
       </article>
+
+      {selectedDocument ? (
+        <article className="card" style={{ marginTop: '0.8rem' }}>
+          <h3>Quick Preview: {selectedDocument.title}</h3>
+          {previewLoading ? <p>Loading preview...</p> : null}
+          <div className="gradebook-layout" style={{ gridTemplateColumns: '1.2fr 1fr' }}>
+            <div className="card">
+              <h3>Document View</h3>
+              {selectedDocument.document_type === 'pdf' && previewUrl ? (
+                <iframe src={previewUrl} title="PDF preview" style={{ width: '100%', minHeight: '420px', border: '1px solid #d5c8aa' }} />
+              ) : (
+                <p className="table-subtle">
+                  Inline preview available for PDF. Use Download for {selectedDocument.document_type.toUpperCase()} files.
+                </p>
+              )}
+            </div>
+            <div className="card" style={{ maxHeight: '460px', overflow: 'auto' }}>
+              <h3>Extracted Text</h3>
+              <pre>{previewText || 'No extracted text available.'}</pre>
+            </div>
+          </div>
+        </article>
+      ) : null}
     </section>
   )
 }

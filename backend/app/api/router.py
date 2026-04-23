@@ -6,6 +6,7 @@ from app.api.routers import (
     backup,
     canvas,
     courses,
+    dashboard,
     documents,
     health,
     interactions,
@@ -14,12 +15,14 @@ from app.api.routers import (
     rubrics,
     settings,
     students,
+    tasks,
 )
 
 api_router = APIRouter()
 api_router.include_router(health.router)
 api_router.include_router(canvas.router)
 api_router.include_router(courses.router)
+api_router.include_router(dashboard.router)
 api_router.include_router(students.router)
 api_router.include_router(attendance.router)
 api_router.include_router(advising.router)
@@ -30,3 +33,4 @@ api_router.include_router(llm.router)
 api_router.include_router(reports.router)
 api_router.include_router(backup.router)
 api_router.include_router(settings.router)
+api_router.include_router(tasks.router)

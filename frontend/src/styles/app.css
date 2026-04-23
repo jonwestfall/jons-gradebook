@@ -62,25 +62,39 @@ h3 {
   margin-bottom: 0.8rem;
 }
 
-.layout.sidebar-collapsed .sidebar h1,
-.layout.sidebar-collapsed .sidebar .subtitle,
-.layout.sidebar-collapsed .sidebar .nav-link {
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: clip;
+.sidebar-top-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.4rem;
 }
 
 .layout.sidebar-collapsed .sidebar h1,
 .layout.sidebar-collapsed .sidebar .subtitle {
-  opacity: 0;
-  height: 0;
-  margin: 0;
-  padding: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.layout.sidebar-collapsed .sidebar h1,
+.layout.sidebar-collapsed .sidebar .subtitle {
+  display: none;
 }
 
 .layout.sidebar-collapsed .sidebar .nav-link {
-  font-size: 0;
-  padding: 0.7rem;
+  justify-content: center;
+  padding: 0.55rem 0.4rem;
+}
+
+.layout.sidebar-collapsed .sidebar .nav-label {
+  display: none;
+}
+
+.layout.sidebar-collapsed .sidebar .sidebar-toggle {
+  font-size: 0.72rem;
+  padding: 0.45rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .subtitle {
@@ -90,12 +104,40 @@ h3 {
 }
 
 .nav-link {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
   color: var(--text);
   text-decoration: none;
   padding: 0.55rem 0.65rem;
   border-radius: 10px;
   margin: 0.28rem 0;
+}
+
+.nav-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.65rem;
+  height: 1.65rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: #f5ebd4;
+  color: var(--brand-strong);
+}
+
+.nav-link.active .nav-icon {
+  border-color: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+.nav-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .nav-link:hover {
@@ -124,6 +166,14 @@ h3 {
   background: var(--surface);
   border-radius: 12px;
   padding: 0.75rem;
+}
+
+.action-bar {
+  position: sticky;
+  top: 0.35rem;
+  z-index: 5;
+  background: rgba(255, 250, 240, 0.98);
+  backdrop-filter: blur(2px);
 }
 
 .list {
@@ -214,6 +264,28 @@ button:hover {
   background: #f9f4e8;
 }
 
+.chip-row {
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.25rem 0.5rem;
+  background: #f7efdd;
+}
+
+.chip button {
+  padding: 0.2rem 0.45rem;
+  font-size: 0.78rem;
+}
+
 .gradebook-table-wrap {
   margin-top: 0.9rem;
   max-height: 72vh;
@@ -270,7 +342,7 @@ button:hover {
 .students-grid-table {
   border-collapse: collapse;
   width: 100%;
-  min-width: 920px;
+  min-width: 780px;
 }
 
 .students-grid-table th,
@@ -292,7 +364,7 @@ button:hover {
 .gradebook-table {
   border-collapse: collapse;
   width: 100%;
-  min-width: 1100px;
+  min-width: 900px;
 }
 
 .gradebook-table th,
@@ -307,6 +379,9 @@ button:hover {
   background: #fff5df;
   border-top: 0;
   cursor: grab;
+  position: sticky;
+  top: 0;
+  z-index: 2;
 }
 
 .sticky-col {
@@ -395,6 +470,47 @@ button:hover {
   text-align: left;
 }
 
+.layout.density-compact .students-grid-table th,
+.layout.density-compact .students-grid-table td,
+.layout.density-compact .gradebook-table th,
+.layout.density-compact .gradebook-table td {
+  padding: 0.25rem 0.32rem;
+  font-size: 0.86rem;
+}
+
+.layout.density-compact .grade-cell-button {
+  padding: 0.22rem 0.28rem;
+  min-width: 46px;
+}
+
+.layout.density-compact .card {
+  padding: 0.58rem;
+}
+
+.command-palette-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 25, 32, 0.35);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 9vh;
+  z-index: 30;
+}
+
+.command-palette {
+  width: min(680px, 92vw);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fffaf2;
+  padding: 0.7rem;
+  box-shadow: 0 12px 38px rgba(21, 67, 96, 0.22);
+}
+
+.command-palette input {
+  width: 100%;
+}
+
 .grade-cell-button:hover {
   border-color: var(--line);
   background: #f5ecda;
@@ -459,6 +575,15 @@ pre {
   }
 
   .students-grid-table {
-    min-width: 720px;
+    min-width: 620px;
+  }
+
+  .students-grid-table.prioritize-mobile th:nth-child(n + 6),
+  .students-grid-table.prioritize-mobile td:nth-child(n + 6) {
+    display: none;
+  }
+
+  .gradebook-table {
+    min-width: 760px;
   }
 }

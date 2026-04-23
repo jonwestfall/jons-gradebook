@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
@@ -97,8 +97,23 @@ def create_advisee(payload: AdviseeCreate, db: Session = Depends(get_db)) -> dic
 
 
 @router.get("/meetings")
-def list_advising_meetings(db: Session = Depends(get_db)) -> list[dict]:
-    meetings = db.scalars(select(AdvisingMeeting).order_by(AdvisingMeeting.meeting_at.desc())).all()
+def list_advising_meetings(
+    advisee_id: int | None = Query(default=None),
+    limit: int = Query(default=300, ge=1, le=2000),
+    db: Session = Depends(get_db),
+) -> list[dict]:
+    query = select(AdvisingMeeting).order_by(AdvisingMeeting.meeting_at.desc())
+    if advisee_id is not None:
+        query = query.where(AdvisingMeeting.advisee_id == advisee_id)
+
+    meetings = db.scalars(query.limit(limit)).all()
+    if not meetings:
+        return []
+
+    advisee_ids = sorted({meeting.advisee_id for meeting in meetings})
+    advisees = db.scalars(select(Advisee).where(Advisee.id.in_(advisee_ids))).all()
+    advisee_map = {advisee.id: advisee for advisee in advisees}
+
     return [
         {
             "id": meeting.id,
@@ -107,6 +122,12 @@ def list_advising_meetings(db: Session = Depends(get_db)) -> list[dict]:
             "mode": meeting.mode.value,
             "summary": meeting.summary,
             "action_items": meeting.action_items,
+            "advisee_name": (
+                f"{advisee_map[meeting.advisee_id].first_name} {advisee_map[meeting.advisee_id].last_name}".strip()
+                if meeting.advisee_id in advisee_map
+                else None
+            ),
+            "student_profile_id": advisee_map[meeting.advisee_id].student_profile_id if meeting.advisee_id in advisee_map else None,
         }
         for meeting in meetings
     ]
@@ -143,4 +164,7 @@ def create_advising_meeting(payload: AdvisingMeetingCreate, db: Session = Depend
         "meeting_at": meeting.meeting_at.isoformat(),
         "mode": meeting.mode.value,
         "summary": meeting.summary,
+        "action_items": meeting.action_items,
+        "advisee_name": f"{advisee.first_name} {advisee.last_name}".strip(),
+        "student_profile_id": advisee.student_profile_id,
     }

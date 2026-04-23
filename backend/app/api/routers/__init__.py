@@ -4,6 +4,7 @@ from app.api.routers import (
     backup,
     canvas,
     courses,
+    dashboard,
     documents,
     health,
     interactions,
@@ -12,12 +13,14 @@ from app.api.routers import (
     rubrics,
     settings,
     students,
+    tasks,
 )
 
 __all__ = [
     "health",
     "canvas",
     "courses",
+    "dashboard",
     "students",
     "attendance",
     "advising",
@@ -28,4 +31,5 @@ __all__ = [
     "reports",
     "backup",
     "settings",
+    "tasks",
 ]
