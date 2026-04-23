@@ -444,3 +444,31 @@ def mark_student_as_advisee(student_id: int, db: Session = Depends(get_db)) -> d
         "email": advisee.email,
         "already_existed": False,
     }
+
+
+@router.post("/{student_id}/unmark-advisee")
+def unmark_student_as_advisee(student_id: int, db: Session = Depends(get_db)) -> dict:
+    student = db.get(StudentProfile, student_id)
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+
+    advisee = db.scalar(select(Advisee).where(Advisee.student_profile_id == student_id))
+    if not advisee:
+        return {"unmarked": False, "reason": "not_marked_as_advisee"}
+
+    # Preserve advising history by keeping the advisee row and detaching profile linkage.
+    advisee.first_name = student.first_name
+    advisee.last_name = student.last_name
+    advisee.email = student.email
+    advisee.external_id = student.student_number
+    advisee.notes = student.notes
+    advisee.student_profile_id = None
+
+    db.commit()
+    db.refresh(advisee)
+    return {
+        "unmarked": True,
+        "advisee_id": advisee.id,
+        "student_profile_id": advisee.student_profile_id,
+        "preserved_history": True,
+    }

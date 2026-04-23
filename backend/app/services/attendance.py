@@ -46,6 +46,7 @@ def upsert_attendance(
     student_id: int,
     status: AttendanceStatus,
     note: str | None = None,
+    auto_commit: bool = True,
 ) -> AttendanceRecord:
     record = db.scalar(
         select(AttendanceRecord).where(
@@ -65,6 +66,9 @@ def upsert_attendance(
         record.status = status
         record.note = note
 
-    db.commit()
-    db.refresh(record)
+    if auto_commit:
+        db.commit()
+        db.refresh(record)
+    else:
+        db.flush()
     return record

@@ -16,3 +16,8 @@ class ManualMeetingCreateRequest(BaseModel):
     course_id: int
     meeting_date: date
     schedule_id: int | None = None
+
+
+class AttendanceSettingsUpdateRequest(BaseModel):
+    lateness_weight: float
+    excluded_from_final_grade: bool

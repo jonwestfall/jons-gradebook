@@ -98,6 +98,18 @@ class Course(Base, TimestampMixin):
     section_name: Mapped[Optional[str]] = mapped_column(String(255))
     term_name: Mapped[Optional[str]] = mapped_column(String(255))
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    attendance_lateness_weight: Mapped[float] = mapped_column(
+        Float,
+        nullable=False,
+        default=0.8,
+        server_default="0.8",
+    )
+    attendance_excluded_from_final_grade: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default="false",
+    )
 
     enrollments = relationship("Enrollment", back_populates="course", cascade="all, delete-orphan")
     assignment_groups = relationship("AssignmentGroup", back_populates="course", cascade="all, delete-orphan")

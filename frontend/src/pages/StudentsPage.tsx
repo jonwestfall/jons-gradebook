@@ -83,20 +83,18 @@ export function StudentsPage() {
               <th>In Class</th>
               <th>Advisee</th>
               <th>Recent Interaction</th>
-              <th>Profile</th>
             </tr>
           </thead>
           <tbody>
             {visibleStudents.map((student) => (
               <tr key={student.id}>
-                <td>{student.last_name}, {student.first_name}</td>
+                <td><Link to={`/students/${student.id}`}>{student.last_name}, {student.first_name}</Link></td>
                 <td>{student.email || '—'}</td>
                 <td>{student.phone_number || '—'}</td>
                 <td>{student.student_number || '—'}</td>
                 <td>{student.has_class_enrollment ? 'Yes' : 'No'}</td>
                 <td>{student.is_advisee ? 'Yes' : 'No'}</td>
                 <td>{student.latest_interaction_at ? new Date(student.latest_interaction_at).toLocaleString() : '—'}</td>
-                <td><Link to={`/students/${student.id}`}>Open</Link></td>
               </tr>
             ))}
           </tbody>

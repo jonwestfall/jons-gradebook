@@ -327,6 +327,45 @@ button:hover {
   font-weight: 500;
 }
 
+.attendance-status-chip {
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 0.35rem 0.6rem;
+  min-width: 106px;
+  text-align: center;
+  font-weight: 600;
+}
+
+.attendance-status-chip.status-present {
+  background: #d7f3d8;
+  color: #1f6a26;
+  border-color: #8fcea3;
+}
+
+.attendance-status-chip.status-absent {
+  background: #f7d9dd;
+  color: #8a1f30;
+  border-color: #e4a3ad;
+}
+
+.attendance-status-chip.status-tardy {
+  background: #ffe6c8;
+  color: #8c4a16;
+  border-color: #edbe85;
+}
+
+.attendance-status-chip.status-excused {
+  background: #dceaf8;
+  color: #1b4f7d;
+  border-color: #a4c3e6;
+}
+
+.attendance-status-chip.status-unmarked {
+  background: #eceff3;
+  color: #415466;
+  border-color: #c4ccd6;
+}
+
 .grade-cell-button {
   border: 1px solid transparent;
   background: transparent;

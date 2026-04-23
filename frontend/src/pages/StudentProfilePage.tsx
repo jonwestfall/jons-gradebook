@@ -73,6 +73,7 @@ export function StudentProfilePage() {
   const [alertMessage, setAlertMessage] = useState('')
   const [alertSeverity, setAlertSeverity] = useState('medium')
   const [markingAdvisee, setMarkingAdvisee] = useState(false)
+  const [unmarkingAdvisee, setUnmarkingAdvisee] = useState(false)
 
   async function loadProfile() {
     if (!studentId) return
@@ -154,6 +155,17 @@ export function StudentProfilePage() {
     }
   }
 
+  async function unmarkAsAdvisee() {
+    if (!studentId) return
+    setUnmarkingAdvisee(true)
+    try {
+      await api.post(`/students/${studentId}/unmark-advisee`)
+      await loadProfile()
+    } finally {
+      setUnmarkingAdvisee(false)
+    }
+  }
+
   if (!profile) {
     return <p>Loading profile...</p>
   }
@@ -180,7 +192,16 @@ export function StudentProfilePage() {
         <button onClick={() => void markAsAdvisee()} disabled={markingAdvisee}>
           {markingAdvisee ? 'Marking...' : 'Mark as Advisee'}
         </button>
-      ) : null}
+      ) : (
+        <div className="gradebook-toolbar compact-grid" style={{ marginTop: '0.5rem' }}>
+          <button onClick={() => void unmarkAsAdvisee()} disabled={unmarkingAdvisee}>
+            {unmarkingAdvisee ? 'Removing...' : 'Remove as Advisee'}
+          </button>
+          <div className="table-subtle">
+            Advising history is preserved; this only removes the active advisee link for this student profile.
+          </div>
+        </div>
+      )}
       <p>Priority order: {profile.priority_sections.join(' > ')}</p>
 
       <div className="grid">
