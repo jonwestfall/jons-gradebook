@@ -287,6 +287,7 @@ def student_profile(student_id: int, db: Session = Depends(get_db)) -> dict:
             {
                 "id": document.id,
                 "title": document.title,
+                "category": document.category,
                 "document_type": document.document_type.value,
                 "current_version": document.current_version,
                 "updated_at": document.updated_at.isoformat() if document.updated_at else None,

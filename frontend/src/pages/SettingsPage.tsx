@@ -41,6 +41,10 @@ export function SettingsPage() {
   const [lastRestoreMessage, setLastRestoreMessage] = useState<string | null>(null)
   const [restorePhrase, setRestorePhrase] = useState('')
   const [preflight, setPreflight] = useState<RestorePreflight | null>(null)
+  const [documentCategories, setDocumentCategories] = useState<string[]>([])
+  const [interactionCategories, setInteractionCategories] = useState<string[]>([])
+  const [newDocumentCategory, setNewDocumentCategory] = useState('')
+  const [newInteractionCategory, setNewInteractionCategory] = useState('')
 
   async function loadBackups() {
     const data = await api.get<BackupArtifact[]>('/backup/')
@@ -52,6 +56,12 @@ export function SettingsPage() {
     }
   }
 
+  async function loadOptions() {
+    const options = await api.get<{ document_categories: string[]; interaction_categories: string[] }>('/settings/options')
+    setDocumentCategories(options.document_categories || [])
+    setInteractionCategories(options.interaction_categories || [])
+  }
+
   async function loadBackupDetail(backupId: number) {
     const detail = await api.get<BackupDetail>(`/backup/${backupId}`)
     setSelectedBackup(detail)
@@ -60,7 +70,7 @@ export function SettingsPage() {
   }
 
   useEffect(() => {
-    void loadBackups().catch((err) => setError((err as Error).message))
+    void Promise.all([loadBackups(), loadOptions()]).catch((err) => setError((err as Error).message))
   }, [])
 
   useEffect(() => {
@@ -109,6 +119,11 @@ export function SettingsPage() {
     } finally {
       setBusy(false)
     }
+  }
+
+  async function saveCategories(key: 'document_categories' | 'interaction_categories', values: string[]) {
+    await api.put(`/settings/options/${key}`, { values })
+    await loadOptions()
   }
 
   return (
@@ -227,6 +242,72 @@ export function SettingsPage() {
 
         {lastRestoreMessage ? <p>{lastRestoreMessage}</p> : null}
         {error ? <p className="error">{error}</p> : null}
+      </article>
+
+      <article className="card" style={{ marginTop: '0.8rem' }}>
+        <h3>Document Categories</h3>
+        <div className="gradebook-toolbar compact-grid">
+          <input
+            value={newDocumentCategory}
+            onChange={(event) => setNewDocumentCategory(event.target.value)}
+            placeholder="Add document category"
+          />
+          <button
+            onClick={() => {
+              const value = newDocumentCategory.trim()
+              if (!value) return
+              void saveCategories('document_categories', [...documentCategories, value])
+              setNewDocumentCategory('')
+            }}
+          >
+            Add
+          </button>
+        </div>
+        <ul className="list compact">
+          {documentCategories.map((category) => (
+            <li key={category} className="card">
+              {category}{' '}
+              <button onClick={() => void saveCategories('document_categories', documentCategories.filter((item) => item !== category))}>
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      </article>
+
+      <article className="card" style={{ marginTop: '0.8rem' }}>
+        <h3>Interaction Categories</h3>
+        <div className="gradebook-toolbar compact-grid">
+          <input
+            value={newInteractionCategory}
+            onChange={(event) => setNewInteractionCategory(event.target.value)}
+            placeholder="Add interaction category"
+          />
+          <button
+            onClick={() => {
+              const value = newInteractionCategory.trim()
+              if (!value) return
+              void saveCategories('interaction_categories', [...interactionCategories, value])
+              setNewInteractionCategory('')
+            }}
+          >
+            Add
+          </button>
+        </div>
+        <ul className="list compact">
+          {interactionCategories.map((category) => (
+            <li key={category} className="card">
+              {category}{' '}
+              <button
+                onClick={() =>
+                  void saveCategories('interaction_categories', interactionCategories.filter((item) => item !== category))
+                }
+              >
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
       </article>
     </section>
   )

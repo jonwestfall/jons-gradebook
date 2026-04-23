@@ -5,6 +5,13 @@ type StudentTarget = {
   id: number
   name: string
   email?: string | null
+  student_number?: string | null
+}
+
+type AdviseeTarget = {
+  id: number
+  name: string
+  student_profile_id?: number | null
 }
 
 type DocumentRow = {
@@ -12,6 +19,8 @@ type DocumentRow = {
   title: string
   owner_type: string
   owner_id: number
+  owner_name?: string | null
+  category?: string
   current_version: number
   document_type: string
   updated_at?: string | null
@@ -30,17 +39,22 @@ type DocumentRow = {
 export function DocumentsPage() {
   const [documents, setDocuments] = useState<DocumentRow[]>([])
   const [students, setStudents] = useState<StudentTarget[]>([])
+  const [advisees, setAdvisees] = useState<AdviseeTarget[]>([])
+  const [documentCategories, setDocumentCategories] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
 
   const [title, setTitle] = useState('')
   const [ownerType, setOwnerType] = useState('student')
   const [ownerId, setOwnerId] = useState('')
+  const [category, setCategory] = useState('Other')
   const [file, setFile] = useState<File | null>(null)
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([])
 
   const [search, setSearch] = useState('')
   const [filterStudentId, setFilterStudentId] = useState('')
   const [filterDocType, setFilterDocType] = useState('')
+  const [filterCategory, setFilterCategory] = useState('')
+  const [personNameFilter, setPersonNameFilter] = useState('')
   const [sortBy, setSortBy] = useState<'updated_at' | 'created_at' | 'title' | 'document_type' | 'current_version'>('updated_at')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
 
@@ -53,8 +67,17 @@ export function DocumentsPage() {
   }, [selectedStudentIds, students])
 
   async function loadTargets() {
-    const response = await api.get<{ students: StudentTarget[] }>('/documents/targets')
+    const response = await api.get<{
+      students: StudentTarget[]
+      advisees: AdviseeTarget[]
+      document_categories: string[]
+    }>('/documents/targets')
     setStudents(response.students)
+    setAdvisees(response.advisees || [])
+    setDocumentCategories(response.document_categories || ['Record', 'Assignment', 'Note', 'Other'])
+    if ((response.document_categories || []).length > 0) {
+      setCategory(response.document_categories[0])
+    }
     if (!ownerId && response.students.length > 0) {
       setOwnerId(String(response.students[0].id))
       setSelectedStudentIds([String(response.students[0].id)])
@@ -66,6 +89,8 @@ export function DocumentsPage() {
     if (search.trim()) params.set('search', search.trim())
     if (filterStudentId) params.set('student_id', filterStudentId)
     if (filterDocType) params.set('document_type', filterDocType)
+    if (filterCategory) params.set('category', filterCategory)
+    if (personNameFilter.trim()) params.set('person_name', personNameFilter.trim())
     params.set('sort_by', sortBy)
     params.set('sort_order', sortOrder)
     params.set('limit', '1000')
@@ -86,6 +111,7 @@ export function DocumentsPage() {
     form.append('owner_type', ownerType)
     form.append('owner_id', ownerId)
     form.append('title', title)
+    form.append('category', category)
     form.append('linked_student_ids', selectedStudentIds.join(','))
     form.append('file', file)
 
@@ -109,12 +135,54 @@ export function DocumentsPage() {
         <h3>Upload Document</h3>
         <form className="form" onSubmit={upload}>
           <input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Document title" required />
-          <select value={ownerType} onChange={(event) => setOwnerType(event.target.value)}>
+          <select
+            value={ownerType}
+            onChange={(event) => {
+              const nextType = event.target.value
+              setOwnerType(nextType)
+              if (nextType === 'student' && students.length > 0) {
+                setOwnerId(String(students[0].id))
+              } else if (nextType === 'advisee' && advisees.length > 0) {
+                setOwnerId(String(advisees[0].id))
+              } else if (nextType === 'system') {
+                setOwnerId('1')
+              }
+            }}
+          >
             <option value="student">Student</option>
             <option value="advisee">Advisee</option>
             <option value="system">System</option>
           </select>
-          <input value={ownerId} onChange={(event) => setOwnerId(event.target.value)} placeholder="Owner ID" required />
+          <div className="table-subtle">
+            Owner guidance: choose `Student` for student files, `Advisee` for advising-only records, or `System` for general documents.
+          </div>
+          {ownerType === 'student' ? (
+            <select value={ownerId} onChange={(event) => setOwnerId(event.target.value)} required>
+              {students.map((student) => (
+                <option key={student.id} value={student.id}>
+                  {student.name} [{student.student_number || 'No ID#'}]
+                </option>
+              ))}
+            </select>
+          ) : ownerType === 'advisee' ? (
+            <select value={ownerId} onChange={(event) => setOwnerId(event.target.value)} required>
+              {advisees.map((advisee) => (
+                <option key={advisee.id} value={advisee.id}>
+                  {advisee.name}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input value={ownerId} onChange={(event) => setOwnerId(event.target.value)} placeholder="System owner ID" required />
+          )}
+
+          <select value={category} onChange={(event) => setCategory(event.target.value)}>
+            {documentCategories.map((item) => (
+              <option key={item} value={item}>
+                {item}
+              </option>
+            ))}
+          </select>
 
           <label>
             Linked Students (multi-select)
@@ -153,6 +221,11 @@ export function DocumentsPage() {
         <h3>Find Documents</h3>
         <div className="gradebook-toolbar compact-grid">
           <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by title" />
+          <input
+            value={personNameFilter}
+            onChange={(event) => setPersonNameFilter(event.target.value)}
+            placeholder="Filter by student/advisee name"
+          />
           <select value={filterStudentId} onChange={(event) => setFilterStudentId(event.target.value)}>
             <option value="">All students</option>
             {students.map((student) => (
@@ -167,6 +240,14 @@ export function DocumentsPage() {
             <option value="docx">DOCX</option>
             <option value="txt">TXT</option>
             <option value="other">Other</option>
+          </select>
+          <select value={filterCategory} onChange={(event) => setFilterCategory(event.target.value)}>
+            <option value="">All categories</option>
+            {documentCategories.map((item) => (
+              <option key={item} value={item}>
+                {item}
+              </option>
+            ))}
           </select>
           <select value={sortBy} onChange={(event) => setSortBy(event.target.value as 'updated_at' | 'created_at' | 'title' | 'document_type' | 'current_version')}>
             <option value="updated_at">Sort by Updated</option>
@@ -193,6 +274,7 @@ export function DocumentsPage() {
             <tr>
               <th>Title</th>
               <th>Type</th>
+              <th>Category</th>
               <th>Owner</th>
               <th>Students Linked</th>
               <th>Version</th>
@@ -207,8 +289,10 @@ export function DocumentsPage() {
               <tr key={document.id}>
                 <td>{document.title}</td>
                 <td>{document.document_type}</td>
+                <td>{document.category || 'Other'}</td>
                 <td>
                   {document.owner_type}:{document.owner_id}
+                  {document.owner_name ? ` (${document.owner_name})` : ''}
                 </td>
                 <td>
                   {document.linked_students.length > 0

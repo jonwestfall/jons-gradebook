@@ -10,6 +10,8 @@ from sqlalchemy import asc, desc, select
 from sqlalchemy.orm import Session
 
 from app.db.models import (
+    Advisee,
+    AppOption,
     DocumentType,
     InteractionLog,
     InteractionType,
@@ -27,6 +29,7 @@ from app.services.documents import (
 )
 
 router = APIRouter(prefix="/documents", tags=["documents"])
+DEFAULT_DOCUMENT_CATEGORIES = ["Record", "Assignment", "Note", "Other"]
 
 
 def _parse_student_ids(value: str | None) -> list[int]:
@@ -51,6 +54,7 @@ def _document_payload(document: StoredDocument, links_by_doc: dict[int, list[dic
     return {
         "id": document.id,
         "title": document.title,
+        "category": document.category,
         "owner_type": document.owner_type,
         "owner_id": document.owner_id,
         "document_type": document.document_type.value,
@@ -74,15 +78,27 @@ def _document_payload(document: StoredDocument, links_by_doc: dict[int, list[dic
 @router.get("/targets")
 def document_targets(db: Session = Depends(get_db)) -> dict:
     students = db.scalars(select(StudentProfile).order_by(StudentProfile.last_name.asc(), StudentProfile.first_name.asc())).all()
+    advisees = db.scalars(select(Advisee).order_by(Advisee.last_name.asc(), Advisee.first_name.asc())).all()
+    category_option = db.scalar(select(AppOption).where(AppOption.key == "document_categories"))
     return {
         "students": [
             {
                 "id": student.id,
                 "name": f"{student.first_name} {student.last_name}".strip(),
                 "email": student.email,
+                "student_number": student.student_number,
             }
             for student in students
-        ]
+        ],
+        "advisees": [
+            {
+                "id": advisee.id,
+                "name": f"{advisee.first_name} {advisee.last_name}".strip(),
+                "student_profile_id": advisee.student_profile_id,
+            }
+            for advisee in advisees
+        ],
+        "document_categories": category_option.value_json if category_option else DEFAULT_DOCUMENT_CATEGORIES,
     }
 
 
@@ -91,6 +107,8 @@ def list_documents(
     search: str | None = Query(default=None),
     student_id: int | None = Query(default=None),
     document_type: str | None = Query(default=None),
+    category: str | None = Query(default=None),
+    person_name: str | None = Query(default=None),
     sort_by: str = Query(default="updated_at"),
     sort_order: str = Query(default="desc"),
     limit: int = Query(default=500, ge=1, le=2000),
@@ -114,6 +132,9 @@ def list_documents(
             StoredDocumentStudentLink,
             StoredDocumentStudentLink.document_id == StoredDocument.id,
         ).where(StoredDocumentStudentLink.student_id == student_id)
+
+    if category:
+        query = query.where(StoredDocument.category == category)
 
     sort_map = {
         "updated_at": StoredDocument.updated_at,
@@ -149,6 +170,19 @@ def list_documents(
         for student in students
     }
 
+    owner_student_ids = {document.owner_id for document in documents if document.owner_type == "student"}
+    owner_advisee_ids = {document.owner_id for document in documents if document.owner_type == "advisee"}
+    owner_student_map = {
+        student.id: f"{student.first_name} {student.last_name}".strip()
+        for student in (
+            db.scalars(select(StudentProfile).where(StudentProfile.id.in_(owner_student_ids))).all() if owner_student_ids else []
+        )
+    }
+    owner_advisee_map = {
+        advisee.id: f"{advisee.first_name} {advisee.last_name}".strip()
+        for advisee in (db.scalars(select(Advisee).where(Advisee.id.in_(owner_advisee_ids))).all() if owner_advisee_ids else [])
+    }
+
     links_by_doc: dict[int, list[dict]] = {}
     for link in links:
         links_by_doc.setdefault(link.document_id, []).append(student_map.get(link.student_id, {"id": link.student_id, "name": f"Student {link.student_id}", "email": None}))
@@ -162,7 +196,29 @@ def list_documents(
         if current is None or version.version_number > current.version_number:
             latest_version_by_doc[version.document_id] = version
 
-    return [_document_payload(document, links_by_doc, latest_version_by_doc) for document in documents]
+    payload = []
+    for document in documents:
+        item = _document_payload(document, links_by_doc, latest_version_by_doc)
+        if document.owner_type == "student":
+            item["owner_name"] = owner_student_map.get(document.owner_id)
+        elif document.owner_type == "advisee":
+            item["owner_name"] = owner_advisee_map.get(document.owner_id)
+        else:
+            item["owner_name"] = None
+        payload.append(item)
+
+    if person_name:
+        query_name = person_name.strip().lower()
+        payload = [
+            item
+            for item in payload
+            if (
+                (item.get("owner_name") and query_name in str(item.get("owner_name")).lower())
+                or any(query_name in student.get("name", "").lower() for student in item.get("linked_students", []))
+            )
+        ]
+
+    return payload
 
 
 @router.get("/by-student/{student_id}")
@@ -175,6 +231,7 @@ async def upload_document(
     owner_type: str = Form(...),
     owner_id: int = Form(...),
     title: str = Form(...),
+    category: str | None = Form(default=None),
     linked_student_ids: str | None = Form(default=None),
     document_id: int | None = Form(default=None),
     file: UploadFile = File(...),
@@ -193,6 +250,7 @@ async def upload_document(
             owner_type=owner_type,
             owner_id=owner_id,
             title=title,
+            category=category,
             document_id=document_id,
             filename=file.filename or "upload.bin",
             content=content,
@@ -227,6 +285,7 @@ async def upload_document(
     return {
         "id": document.id,
         "title": document.title,
+        "category": document.category,
         "owner_type": document.owner_type,
         "owner_id": document.owner_id,
         "current_version": document.current_version,

@@ -12,6 +12,7 @@ from app.api.routers import (
     llm,
     reports,
     rubrics,
+    settings,
     students,
 )
 
@@ -28,3 +29,4 @@ api_router.include_router(documents.router)
 api_router.include_router(llm.router)
 api_router.include_router(reports.router)
 api_router.include_router(backup.router)
+api_router.include_router(settings.router)

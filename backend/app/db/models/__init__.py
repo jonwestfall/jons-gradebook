@@ -45,6 +45,7 @@ from app.db.models.common import Base
 from app.db.models.documents import DocumentType, StoredDocument, StoredDocumentStudentLink, StoredDocumentVersion
 from app.db.models.interactions import InteractionLog, InteractionType
 from app.db.models.llm import LLMOutput, LLMProvider, LLMRun, LLMRunStatus
+from app.db.models.settings import AppOption
 from app.db.models.rubrics import (
     RubricCriterion,
     RubricCriterionRating,
@@ -125,4 +126,5 @@ __all__ = [
     "LLMRunStatus",
     "LLMOutput",
     "BackupArtifact",
+    "AppOption",
 ]

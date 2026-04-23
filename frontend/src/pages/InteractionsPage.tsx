@@ -4,6 +4,8 @@ import { api } from '../api/client'
 type Interaction = {
   id: number
   interaction_type: string
+  custom_type?: string | null
+  display_type?: string | null
   summary: string
   notes?: string | null
   occurred_at: string
@@ -29,6 +31,15 @@ const interactionTypeOptions = [
   { value: 'advising_meeting', label: 'Advising Meeting' },
 ]
 
+const CORE_INTERACTION_LABEL_TO_VALUE: Record<string, string> = {
+  'Manual Note': 'manual_note',
+  'Office Visit': 'office_visit',
+  'Email Log': 'email_log',
+  Attendance: 'attendance',
+  'File Upload': 'file_upload',
+  'Advising Meeting': 'advising_meeting',
+}
+
 export function InteractionsPage() {
   const [interactions, setInteractions] = useState<Interaction[]>([])
   const [targets, setTargets] = useState<InteractionTargets | null>(null)
@@ -45,6 +56,7 @@ export function InteractionsPage() {
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [filterType, setFilterType] = useState('all')
+  const [configuredInteractionTypes, setConfiguredInteractionTypes] = useState<string[]>([])
   const [sortBy, setSortBy] = useState<'occurred_at' | 'interaction_type' | 'summary' | 'id'>('occurred_at')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
   const [limit, setLimit] = useState(400)
@@ -54,6 +66,15 @@ export function InteractionsPage() {
     setTargets(targetRows)
     if (!targetId && targetRows.students.length > 0) {
       setTargetId(String(targetRows.students[0].id))
+    }
+  }
+
+  async function loadSettings() {
+    const settings = await api.get<{ interaction_categories: string[] }>('/settings/options')
+    const categories = settings.interaction_categories || []
+    setConfiguredInteractionTypes(categories)
+    if (categories.length > 0 && !categories.includes(interactionType)) {
+        setInteractionType(categories[0])
     }
   }
 
@@ -83,7 +104,14 @@ export function InteractionsPage() {
       if (nextSearch.trim()) params.set('search', nextSearch.trim())
       if (nextStartDate) params.set('start_date', nextStartDate)
       if (nextEndDate) params.set('end_date', nextEndDate)
-      if (nextFilterType !== 'all') params.set('interaction_type', nextFilterType)
+      if (nextFilterType !== 'all') {
+        const mappedType = CORE_INTERACTION_LABEL_TO_VALUE[nextFilterType] || nextFilterType
+        if (Object.values(CORE_INTERACTION_LABEL_TO_VALUE).includes(mappedType)) {
+          params.set('interaction_type', mappedType)
+        } else {
+          params.set('custom_type', nextFilterType)
+        }
+      }
       params.set('sort_by', nextSortBy)
       params.set('sort_order', nextSortOrder)
       params.set('limit', String(nextLimit))
@@ -97,7 +125,7 @@ export function InteractionsPage() {
   }
 
   useEffect(() => {
-    void Promise.all([loadTargets(), loadInteractions()])
+    void Promise.all([loadTargets(), loadInteractions(), loadSettings()])
   }, [])
 
   const scopeOptions = useMemo(() => {
@@ -125,8 +153,11 @@ export function InteractionsPage() {
     event.preventDefault()
     setError(null)
     try {
+      const mappedType = CORE_INTERACTION_LABEL_TO_VALUE[interactionType] || interactionType
+      const isCore = Object.values(CORE_INTERACTION_LABEL_TO_VALUE).includes(mappedType)
       await api.post('/interactions/bulk', {
-        interaction_type: interactionType,
+        interaction_type: isCore ? mappedType : 'manual_note',
+        custom_type: isCore ? null : interactionType,
         occurred_at: new Date().toISOString(),
         summary,
         notes,
@@ -178,12 +209,14 @@ export function InteractionsPage() {
           )}
 
           <select value={interactionType} onChange={(event) => setInteractionType(event.target.value)}>
-            <option value="manual_note">Manual Note</option>
-            <option value="office_visit">Office Visit</option>
-            <option value="email_log">Email Log</option>
-            <option value="attendance">Attendance</option>
-            <option value="file_upload">File Upload</option>
-            <option value="advising_meeting">Advising Meeting</option>
+            {(configuredInteractionTypes.length > 0
+              ? configuredInteractionTypes
+              : interactionTypeOptions.filter((option) => option.value !== 'all').map((option) => option.label)
+            ).map((label) => (
+              <option key={label} value={label}>
+                {label}
+              </option>
+            ))}
           </select>
 
           <input value={summary} onChange={(event) => setSummary(event.target.value)} placeholder="Interaction summary" required />
@@ -199,9 +232,13 @@ export function InteractionsPage() {
           <input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} />
           <input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} />
           <select value={filterType} onChange={(event) => setFilterType(event.target.value)}>
-            {interactionTypeOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
+            <option value="all">All Types</option>
+            {(configuredInteractionTypes.length > 0
+              ? configuredInteractionTypes
+              : interactionTypeOptions.filter((option) => option.value !== 'all').map((option) => option.label)
+            ).map((label) => (
+              <option key={label} value={label}>
+                {label}
               </option>
             ))}
           </select>
@@ -256,7 +293,7 @@ export function InteractionsPage() {
             {interactions.map((interaction) => (
               <tr key={interaction.id}>
                 <td>{new Date(interaction.occurred_at).toLocaleString()}</td>
-                <td>{interaction.interaction_type.replace('_', ' ')}</td>
+                <td>{interaction.display_type || interaction.custom_type || interaction.interaction_type.replace('_', ' ')}</td>
                 <td>
                   {interaction.advisee_name
                     ? `Advisee: ${interaction.advisee_name}`

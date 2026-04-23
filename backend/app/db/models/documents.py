@@ -22,6 +22,7 @@ class StoredDocument(Base, TimestampMixin):
     owner_type: Mapped[str] = mapped_column(String(50), nullable=False)
     owner_id: Mapped[int] = mapped_column(Integer, nullable=False)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
+    category: Mapped[str] = mapped_column(String(80), nullable=False, default="Other")
     document_type: Mapped[DocumentType] = mapped_column(Enum(DocumentType), nullable=False)
     current_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
 

@@ -59,6 +59,7 @@ type Profile = {
   student_documents: {
     id: number
     title: string
+    category?: string | null
     document_type: string
     current_version: number
     updated_at?: string | null
@@ -415,6 +416,7 @@ export function StudentProfilePage() {
         {profile.student_documents.map((document) => (
           <li key={document.id} className="card">
             <strong>{document.title}</strong>
+            <div>Category: {document.category || 'Other'}</div>
             <div>Type: {document.document_type}</div>
             <div>Version: {document.current_version}</div>
             <div>Filename: {document.latest_filename || 'N/A'}</div>

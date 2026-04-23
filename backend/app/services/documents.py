@@ -45,6 +45,7 @@ def create_or_update_document(
     filename: str,
     content: bytes,
     mime_type: str,
+    category: str | None = None,
     document_id: int | None = None,
     linked_student_ids: list[int] | None = None,
 ) -> StoredDocument:
@@ -62,6 +63,7 @@ def create_or_update_document(
             owner_type=owner_type,
             owner_id=owner_id,
             title=title,
+            category=(category or "Other").strip() or "Other",
             document_type=_detect_document_type(filename, mime_type),
             current_version=1,
         )
@@ -71,6 +73,8 @@ def create_or_update_document(
 
     if title.strip():
         document.title = title.strip()
+    if category is not None:
+        document.category = (category.strip() or "Other")
 
     doc_dir = storage_root / "documents" / str(document.id)
     doc_dir.mkdir(parents=True, exist_ok=True)

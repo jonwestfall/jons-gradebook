@@ -10,6 +10,7 @@ from app.api.routers import (
     llm,
     reports,
     rubrics,
+    settings,
     students,
 )
 
@@ -26,4 +27,5 @@ __all__ = [
     "llm",
     "reports",
     "backup",
+    "settings",
 ]

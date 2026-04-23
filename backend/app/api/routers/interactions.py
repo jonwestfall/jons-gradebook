@@ -18,6 +18,7 @@ def list_interactions(
     start_date: date | None = Query(default=None),
     end_date: date | None = Query(default=None),
     interaction_type: str | None = Query(default=None),
+    custom_type: str | None = Query(default=None),
     search: str | None = Query(default=None),
     sort_by: str = Query(default="occurred_at"),
     sort_order: str = Query(default="desc"),
@@ -37,6 +38,9 @@ def list_interactions(
         except ValueError as exc:
             raise HTTPException(status_code=400, detail="Invalid interaction_type") from exc
         query = query.where(InteractionLog.interaction_type == parsed_type)
+
+    if custom_type:
+        query = query.where(InteractionLog.metadata_json["custom_type"].astext == custom_type)
 
     if search:
         pattern = f"%{search.strip()}%"
@@ -73,6 +77,12 @@ def list_interactions(
             "student_name": student_map.get(interaction.student_profile_id),
             "advisee_name": advisee_map.get(interaction.advisee_id),
             "interaction_type": interaction.interaction_type.value,
+            "custom_type": interaction.metadata_json.get("custom_type") if isinstance(interaction.metadata_json, dict) else None,
+            "display_type": (
+                interaction.metadata_json.get("custom_type")
+                if isinstance(interaction.metadata_json, dict) and interaction.metadata_json.get("custom_type")
+                else interaction.interaction_type.value
+            ),
             "occurred_at": interaction.occurred_at.isoformat(),
             "summary": interaction.summary,
             "notes": interaction.notes,
@@ -84,13 +94,17 @@ def list_interactions(
 
 @router.post("/")
 def create_interaction(payload: InteractionCreate, db: Session = Depends(get_db)) -> dict:
-    interaction = InteractionLog(**payload.model_dump())
+    metadata = dict(payload.metadata_json or {})
+    if payload.custom_type:
+        metadata["custom_type"] = payload.custom_type
+    interaction = InteractionLog(**payload.model_dump(exclude={"custom_type", "metadata_json"}), metadata_json=metadata)
     db.add(interaction)
     db.commit()
     db.refresh(interaction)
     return {
         "id": interaction.id,
         "interaction_type": interaction.interaction_type.value,
+        "custom_type": metadata.get("custom_type"),
         "occurred_at": interaction.occurred_at.isoformat(),
     }
 
@@ -156,7 +170,11 @@ def create_interaction_bulk(payload: InteractionBulkCreate, db: Session = Depend
                 occurred_at=payload.occurred_at,
                 summary=payload.summary,
                 notes=payload.notes,
-                metadata_json={**payload.metadata_json, "target_scope": "student"},
+                metadata_json={
+                    **payload.metadata_json,
+                    "target_scope": "student",
+                    **({"custom_type": payload.custom_type} if payload.custom_type else {}),
+                },
             )
         )
         created = 1
@@ -183,6 +201,7 @@ def create_interaction_bulk(payload: InteractionBulkCreate, db: Session = Depend
                         "target_scope": "course",
                         "course_id": course.id,
                         "course_name": course.name,
+                        **({"custom_type": payload.custom_type} if payload.custom_type else {}),
                     },
                 )
             )
@@ -199,7 +218,11 @@ def create_interaction_bulk(payload: InteractionBulkCreate, db: Session = Depend
                     occurred_at=payload.occurred_at,
                     summary=payload.summary,
                     notes=payload.notes,
-                    metadata_json={**payload.metadata_json, "target_scope": "advisees"},
+                    metadata_json={
+                        **payload.metadata_json,
+                        "target_scope": "advisees",
+                        **({"custom_type": payload.custom_type} if payload.custom_type else {}),
+                    },
                 )
             )
             created += 1
