@@ -476,7 +476,13 @@ def attach_rule_to_course(course_id: int, payload: AttachRuleRequest, db: Sessio
 
 @router.post("/meetings/generate")
 def generate_course_meetings(payload: MeetingGenerateRequest, db: Session = Depends(get_db)) -> list[dict]:
-    meetings = generate_meetings(db, payload.course_id, payload.start_date, payload.end_date)
+    meetings = generate_meetings(
+        db,
+        payload.course_id,
+        payload.start_date,
+        payload.end_date,
+        weekdays=set(payload.weekdays),
+    )
     return [
         {
             "id": meeting.id,

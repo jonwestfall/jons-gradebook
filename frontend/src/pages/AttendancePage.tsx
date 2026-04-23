@@ -71,6 +71,16 @@ function statusIcon(status: RollCallStudent['status']) {
 }
 
 export function AttendancePage() {
+  const weekdayOptions = [
+    { value: 0, label: 'Sun' },
+    { value: 1, label: 'Mon' },
+    { value: 2, label: 'Tue' },
+    { value: 3, label: 'Wed' },
+    { value: 4, label: 'Thu' },
+    { value: 5, label: 'Fri' },
+    { value: 6, label: 'Sat' },
+  ]
+
   const [courses, setCourses] = useState<AttendanceCourse[]>([])
   const [courseId, setCourseId] = useState('')
   const [rollCall, setRollCall] = useState<RollCallPayload | null>(null)
@@ -80,6 +90,7 @@ export function AttendancePage() {
   const [meetingDate, setMeetingDate] = useState('')
   const [generateStart, setGenerateStart] = useState('')
   const [generateEnd, setGenerateEnd] = useState('')
+  const [generateWeekdays, setGenerateWeekdays] = useState<number[]>([])
   const [search, setSearch] = useState('')
   const [noteDrafts, setNoteDrafts] = useState<Record<number, string>>({})
   const [savingKey, setSavingKey] = useState<string | null>(null)
@@ -233,6 +244,7 @@ export function AttendancePage() {
         course_id: Number(courseId),
         start_date: generateStart,
         end_date: generateEnd,
+        weekdays: generateWeekdays,
       })
       await loadRollCall(courseId)
     } finally {
@@ -349,10 +361,30 @@ export function AttendancePage() {
           <form className="form gradebook-toolbar" onSubmit={generateMeetings}>
             <input type="date" value={generateStart} onChange={(event) => setGenerateStart(event.target.value)} required />
             <input type="date" value={generateEnd} onChange={(event) => setGenerateEnd(event.target.value)} required />
+            <div className="weekday-checkboxes">
+              {weekdayOptions.map((option) => (
+                <label key={option.value}>
+                  <input
+                    type="checkbox"
+                    checked={generateWeekdays.includes(option.value)}
+                    onChange={(event) => {
+                      setGenerateWeekdays((prev) => {
+                        if (event.target.checked) {
+                          return [...prev, option.value].sort((a, b) => a - b)
+                        }
+                        return prev.filter((value) => value !== option.value)
+                      })
+                    }}
+                  />
+                  {option.label}
+                </label>
+              ))}
+            </div>
             <button type="submit" disabled={!courseId || savingKey === 'generate-meetings'}>
               {savingKey === 'generate-meetings' ? 'Generating...' : 'Generate'}
             </button>
           </form>
+          <p className="table-subtle">Choose weekdays to generate only those dates (example: Tue/Thu). Leave all unchecked to use saved course schedule days.</p>
         </article>
       </div>
 

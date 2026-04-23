@@ -1,7 +1,7 @@
 from datetime import date, datetime, time
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.db.models import (
     AssignmentGradingType,
@@ -83,6 +83,16 @@ class MeetingGenerateRequest(BaseModel):
     course_id: int
     start_date: date
     end_date: date
+    weekdays: list[int] = Field(default_factory=list)
+
+    @field_validator("weekdays")
+    @classmethod
+    def validate_weekdays(cls, value: list[int]) -> list[int]:
+        normalized = sorted(set(value))
+        for weekday in normalized:
+            if weekday < 0 or weekday > 6:
+                raise ValueError("weekdays must be in range 0..6")
+        return normalized
 
 
 class MatchBulkActionRequest(BaseModel):
