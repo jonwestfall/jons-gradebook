@@ -6,11 +6,12 @@ from pathlib import Path
 
 from docx import Document as DocxDocument
 from pypdf import PdfReader
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.encryption import decrypt_bytes, decrypt_text, encrypt_bytes, encrypt_text
-from app.db.models import DocumentType, StoredDocument, StoredDocumentVersion
+from app.db.models import DocumentType, StoredDocument, StoredDocumentStudentLink, StoredDocumentVersion
 
 
 def _detect_document_type(filename: str, mime_type: str | None) -> DocumentType:
@@ -45,6 +46,7 @@ def create_or_update_document(
     content: bytes,
     mime_type: str,
     document_id: int | None = None,
+    linked_student_ids: list[int] | None = None,
 ) -> StoredDocument:
     settings = get_settings()
     storage_root = Path(settings.storage_root)
@@ -67,6 +69,9 @@ def create_or_update_document(
         db.flush()
         next_version = 1
 
+    if title.strip():
+        document.title = title.strip()
+
     doc_dir = storage_root / "documents" / str(document.id)
     doc_dir.mkdir(parents=True, exist_ok=True)
 
@@ -88,6 +93,21 @@ def create_or_update_document(
     )
     db.add(version)
     document.current_version = next_version
+
+    link_ids = sorted({student_id for student_id in (linked_student_ids or []) if student_id > 0})
+    if owner_type == "student" and owner_id > 0:
+        link_ids = sorted(set(link_ids + [owner_id]))
+    if link_ids:
+        existing_links = db.scalars(
+            select(StoredDocumentStudentLink).where(
+                StoredDocumentStudentLink.document_id == document.id,
+                StoredDocumentStudentLink.student_id.in_(link_ids),
+            )
+        ).all()
+        existing_student_ids = {link.student_id for link in existing_links}
+        for student_id in link_ids:
+            if student_id not in existing_student_ids:
+                db.add(StoredDocumentStudentLink(document_id=document.id, student_id=student_id))
 
     db.commit()
     db.refresh(document)
@@ -134,3 +154,24 @@ def read_document_file(db: Session, document_id: int, version_number: int | None
 
     encrypted_bytes = Path(version.encrypted_file_path).read_bytes()
     return decrypt_bytes(encrypted_bytes)
+
+
+def set_document_student_links(db: Session, document_id: int, student_ids: list[int]) -> list[int]:
+    document = db.get(StoredDocument, document_id)
+    if not document:
+        raise ValueError("Document not found")
+
+    target_ids = sorted({student_id for student_id in student_ids if student_id > 0})
+    current_links = db.scalars(select(StoredDocumentStudentLink).where(StoredDocumentStudentLink.document_id == document_id)).all()
+    current_ids = {link.student_id for link in current_links}
+
+    for link in current_links:
+        if link.student_id not in target_ids:
+            db.delete(link)
+
+    for student_id in target_ids:
+        if student_id not in current_ids:
+            db.add(StoredDocumentStudentLink(document_id=document_id, student_id=student_id))
+
+    db.commit()
+    return target_ids

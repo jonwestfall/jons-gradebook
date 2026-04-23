@@ -56,6 +56,15 @@ type Profile = {
     possible: number
     percent?: number | null
   }[]
+  student_documents: {
+    id: number
+    title: string
+    document_type: string
+    current_version: number
+    updated_at?: string | null
+    latest_filename?: string | null
+    latest_size_bytes?: number | null
+  }[]
   recent_interactions: { id: number; type: string; summary: string; occurred_at: string }[]
   advising_meetings: { id: number; meeting_at: string; mode: string; summary?: string | null }[]
 }
@@ -74,6 +83,10 @@ export function StudentProfilePage() {
   const [alertSeverity, setAlertSeverity] = useState('medium')
   const [markingAdvisee, setMarkingAdvisee] = useState(false)
   const [unmarkingAdvisee, setUnmarkingAdvisee] = useState(false)
+  const [documentTitle, setDocumentTitle] = useState('')
+  const [documentFile, setDocumentFile] = useState<File | null>(null)
+  const [documentLinkStudentIds, setDocumentLinkStudentIds] = useState<string[]>([])
+  const [documentTargets, setDocumentTargets] = useState<{ id: number; name: string; email?: string | null }[]>([])
 
   async function loadProfile() {
     if (!studentId) return
@@ -84,11 +97,21 @@ export function StudentProfilePage() {
     setLastNameDraft(data.student.last_name || '')
     setEmailDraft(data.student.email || '')
     setPhoneDraft(data.student.phone_number || '')
+    setDocumentLinkStudentIds((current) => (current.length > 0 ? current : [String(data.student.id)]))
+  }
+
+  async function loadDocumentTargets() {
+    const response = await api.get<{ students: { id: number; name: string; email?: string | null }[] }>('/documents/targets')
+    setDocumentTargets(response.students)
   }
 
   useEffect(() => {
     void loadProfile()
   }, [studentId])
+
+  useEffect(() => {
+    void loadDocumentTargets()
+  }, [])
 
   async function saveNotes(event: FormEvent) {
     event.preventDefault()
@@ -164,6 +187,23 @@ export function StudentProfilePage() {
     } finally {
       setUnmarkingAdvisee(false)
     }
+  }
+
+  async function uploadDocument(event: FormEvent) {
+    event.preventDefault()
+    if (!studentId || !documentFile) return
+
+    const form = new FormData()
+    form.append('owner_type', 'student')
+    form.append('owner_id', studentId)
+    form.append('title', documentTitle || documentFile.name)
+    form.append('linked_student_ids', documentLinkStudentIds.join(','))
+    form.append('file', documentFile)
+
+    await api.post('/documents/upload', form)
+    setDocumentTitle('')
+    setDocumentFile(null)
+    await loadProfile()
   }
 
   if (!profile) {
@@ -331,6 +371,67 @@ export function StudentProfilePage() {
             {interaction.type} - {interaction.summary}
           </li>
         ))}
+      </ul>
+
+      <h3>Student Documents</h3>
+      <article className="card">
+        <form className="form" onSubmit={uploadDocument}>
+          <input
+            value={documentTitle}
+            onChange={(event) => setDocumentTitle(event.target.value)}
+            placeholder="Document title"
+          />
+          <label>
+            Link to students (multi-select)
+            <select
+              multiple
+              size={7}
+              value={documentLinkStudentIds}
+              onChange={(event) => {
+                const values = Array.from(event.target.selectedOptions).map((option) => option.value)
+                setDocumentLinkStudentIds(values)
+              }}
+            >
+              {documentTargets.map((student) => (
+                <option key={student.id} value={student.id}>
+                  {student.name}
+                  {student.email ? ` (${student.email})` : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+          <input
+            type="file"
+            onChange={(event) => {
+              const selected = event.target.files?.[0]
+              if (selected) setDocumentFile(selected)
+            }}
+            required
+          />
+          <button type="submit">Attach Document</button>
+        </form>
+      </article>
+      <ul className="list">
+        {profile.student_documents.map((document) => (
+          <li key={document.id} className="card">
+            <strong>{document.title}</strong>
+            <div>Type: {document.document_type}</div>
+            <div>Version: {document.current_version}</div>
+            <div>Filename: {document.latest_filename || 'N/A'}</div>
+            <div>Size: {document.latest_size_bytes ? `${document.latest_size_bytes.toLocaleString()} B` : 'N/A'}</div>
+            <div>Updated: {document.updated_at ? new Date(document.updated_at).toLocaleString() : 'N/A'}</div>
+            <div style={{ marginTop: '0.35rem' }}>
+              <a href={`/api/v1/documents/${document.id}/download`} target="_blank" rel="noreferrer">
+                Download
+              </a>{' '}
+              |{' '}
+              <a href={`/api/v1/documents/${document.id}/text`} target="_blank" rel="noreferrer">
+                View Extracted Text
+              </a>
+            </div>
+          </li>
+        ))}
+        {profile.student_documents.length === 0 ? <li className="card">No documents linked.</li> : null}
       </ul>
     </section>
   )

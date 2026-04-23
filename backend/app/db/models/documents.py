@@ -26,6 +26,7 @@ class StoredDocument(Base, TimestampMixin):
     current_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
 
     versions = relationship("StoredDocumentVersion", back_populates="document", cascade="all, delete-orphan")
+    student_links = relationship("StoredDocumentStudentLink", back_populates="document", cascade="all, delete-orphan")
 
 
 class StoredDocumentVersion(Base, TimestampMixin):
@@ -43,3 +44,14 @@ class StoredDocumentVersion(Base, TimestampMixin):
     size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
 
     document = relationship("StoredDocument", back_populates="versions")
+
+
+class StoredDocumentStudentLink(Base, TimestampMixin):
+    __tablename__ = "stored_document_student_links"
+    __table_args__ = (UniqueConstraint("document_id", "student_id", name="uq_document_student_link"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    document_id: Mapped[int] = mapped_column(ForeignKey("stored_documents.id", ondelete="CASCADE"), nullable=False)
+    student_id: Mapped[int] = mapped_column(ForeignKey("student_profiles.id", ondelete="CASCADE"), nullable=False)
+
+    document = relationship("StoredDocument", back_populates="student_links")

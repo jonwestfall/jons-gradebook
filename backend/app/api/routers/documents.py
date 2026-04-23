@@ -1,35 +1,173 @@
 from __future__ import annotations
 
 import mimetypes
-from pathlib import Path
 from datetime import datetime, timezone
+from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select
+from sqlalchemy import asc, desc, select
 from sqlalchemy.orm import Session
 
-from app.db.models import InteractionLog, InteractionType, StoredDocument
+from app.db.models import (
+    DocumentType,
+    InteractionLog,
+    InteractionType,
+    StoredDocument,
+    StoredDocumentStudentLink,
+    StoredDocumentVersion,
+    StudentProfile,
+)
 from app.db.session import get_db
-from app.services.documents import create_or_update_document, get_document_text, read_document_file
+from app.services.documents import (
+    create_or_update_document,
+    get_document_text,
+    read_document_file,
+    set_document_student_links,
+)
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
 
-@router.get("/")
-def list_documents(db: Session = Depends(get_db)) -> list[dict]:
-    documents = db.scalars(select(StoredDocument).order_by(StoredDocument.updated_at.desc())).all()
-    return [
-        {
-            "id": document.id,
-            "title": document.title,
-            "owner_type": document.owner_type,
-            "owner_id": document.owner_id,
-            "document_type": document.document_type.value,
-            "current_version": document.current_version,
+def _parse_student_ids(value: str | None) -> list[int]:
+    if not value:
+        return []
+    parsed: list[int] = []
+    for raw in value.split(","):
+        token = raw.strip()
+        if not token:
+            continue
+        try:
+            number = int(token)
+        except ValueError:
+            continue
+        if number > 0:
+            parsed.append(number)
+    return sorted(set(parsed))
+
+
+def _document_payload(document: StoredDocument, links_by_doc: dict[int, list[dict]], latest_version_by_doc: dict[int, StoredDocumentVersion]) -> dict:
+    latest_version = latest_version_by_doc.get(document.id)
+    return {
+        "id": document.id,
+        "title": document.title,
+        "owner_type": document.owner_type,
+        "owner_id": document.owner_id,
+        "document_type": document.document_type.value,
+        "current_version": document.current_version,
+        "updated_at": document.updated_at.isoformat() if document.updated_at else None,
+        "created_at": document.created_at.isoformat() if document.created_at else None,
+        "linked_students": links_by_doc.get(document.id, []),
+        "latest_version": {
+            "version_number": latest_version.version_number,
+            "original_filename": latest_version.original_filename,
+            "mime_type": latest_version.mime_type,
+            "size_bytes": latest_version.size_bytes,
+            "checksum_sha256": latest_version.checksum_sha256,
+            "updated_at": latest_version.updated_at.isoformat() if latest_version.updated_at else None,
         }
-        for document in documents
-    ]
+        if latest_version
+        else None,
+    }
+
+
+@router.get("/targets")
+def document_targets(db: Session = Depends(get_db)) -> dict:
+    students = db.scalars(select(StudentProfile).order_by(StudentProfile.last_name.asc(), StudentProfile.first_name.asc())).all()
+    return {
+        "students": [
+            {
+                "id": student.id,
+                "name": f"{student.first_name} {student.last_name}".strip(),
+                "email": student.email,
+            }
+            for student in students
+        ]
+    }
+
+
+@router.get("/")
+def list_documents(
+    search: str | None = Query(default=None),
+    student_id: int | None = Query(default=None),
+    document_type: str | None = Query(default=None),
+    sort_by: str = Query(default="updated_at"),
+    sort_order: str = Query(default="desc"),
+    limit: int = Query(default=500, ge=1, le=2000),
+    db: Session = Depends(get_db),
+) -> list[dict]:
+    query = select(StoredDocument)
+
+    if search:
+        pattern = f"%{search.strip()}%"
+        query = query.where(StoredDocument.title.ilike(pattern))
+
+    if document_type:
+        try:
+            parsed_type = DocumentType(document_type)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="Invalid document_type") from exc
+        query = query.where(StoredDocument.document_type == parsed_type)
+
+    if student_id is not None:
+        query = query.join(
+            StoredDocumentStudentLink,
+            StoredDocumentStudentLink.document_id == StoredDocument.id,
+        ).where(StoredDocumentStudentLink.student_id == student_id)
+
+    sort_map = {
+        "updated_at": StoredDocument.updated_at,
+        "created_at": StoredDocument.created_at,
+        "title": StoredDocument.title,
+        "document_type": StoredDocument.document_type,
+        "current_version": StoredDocument.current_version,
+    }
+    field = sort_map.get(sort_by, StoredDocument.updated_at)
+    direction = asc if sort_order.lower() == "asc" else desc
+    documents = db.scalars(query.order_by(direction(field), desc(StoredDocument.id)).limit(limit)).all()
+
+    if not documents:
+        return []
+
+    document_ids = [document.id for document in documents]
+
+    links = db.scalars(
+        select(StoredDocumentStudentLink)
+        .where(StoredDocumentStudentLink.document_id.in_(document_ids))
+        .order_by(StoredDocumentStudentLink.document_id.asc())
+    ).all()
+    student_ids = {link.student_id for link in links}
+    students = (
+        db.scalars(select(StudentProfile).where(StudentProfile.id.in_(student_ids))).all() if student_ids else []
+    )
+    student_map = {
+        student.id: {
+            "id": student.id,
+            "name": f"{student.first_name} {student.last_name}".strip(),
+            "email": student.email,
+        }
+        for student in students
+    }
+
+    links_by_doc: dict[int, list[dict]] = {}
+    for link in links:
+        links_by_doc.setdefault(link.document_id, []).append(student_map.get(link.student_id, {"id": link.student_id, "name": f"Student {link.student_id}", "email": None}))
+
+    versions = db.scalars(
+        select(StoredDocumentVersion).where(StoredDocumentVersion.document_id.in_(document_ids))
+    ).all()
+    latest_version_by_doc: dict[int, StoredDocumentVersion] = {}
+    for version in versions:
+        current = latest_version_by_doc.get(version.document_id)
+        if current is None or version.version_number > current.version_number:
+            latest_version_by_doc[version.document_id] = version
+
+    return [_document_payload(document, links_by_doc, latest_version_by_doc) for document in documents]
+
+
+@router.get("/by-student/{student_id}")
+def list_documents_for_student(student_id: int, db: Session = Depends(get_db)) -> list[dict]:
+    return list_documents(student_id=student_id, limit=500, db=db)
 
 
 @router.post("/upload")
@@ -37,6 +175,7 @@ async def upload_document(
     owner_type: str = Form(...),
     owner_id: int = Form(...),
     title: str = Form(...),
+    linked_student_ids: str | None = Form(default=None),
     document_id: int | None = Form(default=None),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
@@ -46,6 +185,7 @@ async def upload_document(
         raise HTTPException(status_code=400, detail="Uploaded file is empty")
 
     mime_type = file.content_type or mimetypes.guess_type(file.filename or "")[0] or "application/octet-stream"
+    student_ids = _parse_student_ids(linked_student_ids)
 
     try:
         document = create_or_update_document(
@@ -57,6 +197,7 @@ async def upload_document(
             filename=file.filename or "upload.bin",
             content=content,
             mime_type=mime_type,
+            linked_student_ids=student_ids,
         )
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -73,10 +214,15 @@ async def upload_document(
             "version": document.current_version,
             "owner_type": owner_type,
             "filename": file.filename,
+            "linked_student_ids": student_ids,
         },
     )
     db.add(interaction)
     db.commit()
+
+    links = db.scalars(
+        select(StoredDocumentStudentLink).where(StoredDocumentStudentLink.document_id == document.id)
+    ).all()
 
     return {
         "id": document.id,
@@ -84,6 +230,29 @@ async def upload_document(
         "owner_type": document.owner_type,
         "owner_id": document.owner_id,
         "current_version": document.current_version,
+        "linked_student_ids": sorted({link.student_id for link in links}),
+    }
+
+
+@router.post("/{document_id}/link-students")
+def link_document_students(document_id: int, payload: dict, db: Session = Depends(get_db)) -> dict:
+    raw_ids = payload.get("student_ids", [])
+    if not isinstance(raw_ids, list):
+        raise HTTPException(status_code=400, detail="student_ids must be a list")
+
+    try:
+        ids = [int(item) for item in raw_ids]
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(status_code=400, detail="student_ids must contain integers") from exc
+
+    try:
+        linked = set_document_student_links(db, document_id=document_id, student_ids=ids)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    return {
+        "document_id": document_id,
+        "student_ids": linked,
     }
 
 
@@ -102,6 +271,15 @@ def download_document(document_id: int, version: int | None = None, db: Session 
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
 
+    version_row = db.scalar(
+        select(StoredDocumentVersion).where(
+            StoredDocumentVersion.document_id == document_id,
+            StoredDocumentVersion.version_number == (version or document.current_version),
+        )
+    )
+    if not version_row:
+        raise HTTPException(status_code=404, detail="Version not found")
+
     try:
         raw_bytes = read_document_file(db, document_id=document_id, version_number=version)
     except ValueError as exc:
@@ -111,13 +289,13 @@ def download_document(document_id: int, version: int | None = None, db: Session 
         "pdf": ".pdf",
         "docx": ".docx",
         "txt": ".txt",
-    }.get(document.document_type.value, ".bin")
+    }.get(document.document_type.value, Path(version_row.original_filename).suffix or ".bin")
 
-    filename = f"document-{document_id}-v{version or document.current_version}{ext}"
-    media_type = mimetypes.guess_type(Path(filename).name)[0] or "application/octet-stream"
+    filename = f"{document.title.strip() or 'document'}-v{version or document.current_version}{ext}"
+    media_type = version_row.mime_type or mimetypes.guess_type(Path(filename).name)[0] or "application/octet-stream"
 
     return StreamingResponse(
         iter([raw_bytes]),
         media_type=media_type,
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": f'attachment; filename="{Path(filename).name}"'},
     )

@@ -14,6 +14,9 @@ from app.db.models import (
     Enrollment,
     GradeEntry,
     InteractionLog,
+    StoredDocument,
+    StoredDocumentStudentLink,
+    StoredDocumentVersion,
     StudentAlert,
     StudentProfile,
     StudentProfileTag,
@@ -106,6 +109,26 @@ def student_profile(student_id: int, db: Session = Depends(get_db)) -> dict:
         .where(AdvisingMeeting.advisee.has(student_profile_id=student_id))
         .order_by(AdvisingMeeting.meeting_at.desc())
     ).all()
+
+    document_links = db.scalars(
+        select(StoredDocumentStudentLink).where(StoredDocumentStudentLink.student_id == student_id)
+    ).all()
+    document_ids = [link.document_id for link in document_links]
+    documents = (
+        db.scalars(select(StoredDocument).where(StoredDocument.id.in_(document_ids)).order_by(StoredDocument.updated_at.desc())).all()
+        if document_ids
+        else []
+    )
+    versions = (
+        db.scalars(select(StoredDocumentVersion).where(StoredDocumentVersion.document_id.in_(document_ids))).all()
+        if document_ids
+        else []
+    )
+    latest_version_by_doc_id: dict[int, StoredDocumentVersion] = {}
+    for version in versions:
+        current = latest_version_by_doc_id.get(version.document_id)
+        if current is None or version.version_number > current.version_number:
+            latest_version_by_doc_id[version.document_id] = version
 
     grade_rows = db.execute(
         select(GradeEntry, Assignment)
@@ -259,6 +282,18 @@ def student_profile(student_id: int, db: Session = Depends(get_db)) -> dict:
                 "summary": interaction.summary,
             }
             for interaction in interactions
+        ],
+        "student_documents": [
+            {
+                "id": document.id,
+                "title": document.title,
+                "document_type": document.document_type.value,
+                "current_version": document.current_version,
+                "updated_at": document.updated_at.isoformat() if document.updated_at else None,
+                "latest_filename": latest_version_by_doc_id[document.id].original_filename if latest_version_by_doc_id.get(document.id) else None,
+                "latest_size_bytes": latest_version_by_doc_id[document.id].size_bytes if latest_version_by_doc_id.get(document.id) else None,
+            }
+            for document in documents
         ],
         "advising_meetings": [
             {
