@@ -47,6 +47,7 @@ from app.db.models.interactions import InteractionLog, InteractionType
 from app.db.models.llm import LLMOutput, LLMProvider, LLMRun, LLMRunStatus
 from app.db.models.rubrics import (
     RubricCriterion,
+    RubricCriterionRating,
     RubricCriterionType,
     RubricEvaluation,
     RubricEvaluationItem,
@@ -106,6 +107,7 @@ __all__ = [
     "InteractionType",
     "RubricTemplate",
     "RubricCriterion",
+    "RubricCriterionRating",
     "RubricCriterionType",
     "RubricEvaluation",
     "RubricEvaluationItem",

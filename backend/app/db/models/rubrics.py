@@ -36,8 +36,23 @@ class RubricCriterion(Base, TimestampMixin):
     max_points: Mapped[Optional[float]] = mapped_column(Float)
     is_required: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     prompt: Mapped[Optional[str]] = mapped_column(Text)
+    display_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     rubric = relationship("RubricTemplate", back_populates="criteria")
+    ratings = relationship("RubricCriterionRating", back_populates="criterion", cascade="all, delete-orphan")
+
+
+class RubricCriterionRating(Base, TimestampMixin):
+    __tablename__ = "rubric_criterion_ratings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    criterion_id: Mapped[int] = mapped_column(ForeignKey("rubric_criteria.id", ondelete="CASCADE"), nullable=False)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text)
+    points: Mapped[Optional[float]] = mapped_column(Float)
+    display_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    criterion = relationship("RubricCriterion", back_populates="ratings")
 
 
 class RubricEvaluation(Base, TimestampMixin):
@@ -60,6 +75,7 @@ class RubricEvaluationItem(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     evaluation_id: Mapped[int] = mapped_column(ForeignKey("rubric_evaluations.id", ondelete="CASCADE"), nullable=False)
     criterion_id: Mapped[int] = mapped_column(ForeignKey("rubric_criteria.id", ondelete="CASCADE"), nullable=False)
+    rating_id: Mapped[Optional[int]] = mapped_column(ForeignKey("rubric_criterion_ratings.id", ondelete="SET NULL"))
     points_awarded: Mapped[Optional[float]] = mapped_column(Float)
     is_checked: Mapped[Optional[bool]] = mapped_column(Boolean)
     narrative_comment: Mapped[Optional[str]] = mapped_column(Text)

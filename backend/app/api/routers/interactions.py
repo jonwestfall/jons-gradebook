@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from datetime import date, datetime, time, timezone
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import asc, desc, or_, select
 from sqlalchemy.orm import Session
 
-from app.db.models import Advisee, Course, Enrollment, InteractionLog, StudentProfile
+from app.db.models import Advisee, Course, Enrollment, InteractionLog, InteractionType, StudentProfile
 from app.db.session import get_db
 from app.schemas.interactions import InteractionBulkCreate, InteractionCreate
 
@@ -12,8 +14,45 @@ router = APIRouter(prefix="/interactions", tags=["interactions"])
 
 
 @router.get("/")
-def list_interactions(db: Session = Depends(get_db)) -> list[dict]:
-    interactions = db.scalars(select(InteractionLog).order_by(InteractionLog.occurred_at.desc()).limit(200)).all()
+def list_interactions(
+    start_date: date | None = Query(default=None),
+    end_date: date | None = Query(default=None),
+    interaction_type: str | None = Query(default=None),
+    search: str | None = Query(default=None),
+    sort_by: str = Query(default="occurred_at"),
+    sort_order: str = Query(default="desc"),
+    limit: int = Query(default=200, ge=1, le=1000),
+    db: Session = Depends(get_db),
+) -> list[dict]:
+    query = select(InteractionLog)
+
+    if start_date is not None:
+        query = query.where(InteractionLog.occurred_at >= datetime.combine(start_date, time.min, tzinfo=timezone.utc))
+    if end_date is not None:
+        query = query.where(InteractionLog.occurred_at <= datetime.combine(end_date, time.max, tzinfo=timezone.utc))
+
+    if interaction_type:
+        try:
+            parsed_type = InteractionType(interaction_type)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="Invalid interaction_type") from exc
+        query = query.where(InteractionLog.interaction_type == parsed_type)
+
+    if search:
+        pattern = f"%{search.strip()}%"
+        query = query.where(or_(InteractionLog.summary.ilike(pattern), InteractionLog.notes.ilike(pattern)))
+
+    sort_field_map = {
+        "occurred_at": InteractionLog.occurred_at,
+        "interaction_type": InteractionLog.interaction_type,
+        "summary": InteractionLog.summary,
+        "id": InteractionLog.id,
+    }
+    sort_field = sort_field_map.get(sort_by, InteractionLog.occurred_at)
+    direction = asc if sort_order.lower() == "asc" else desc
+    query = query.order_by(direction(sort_field), direction(InteractionLog.id)).limit(limit)
+
+    interactions = db.scalars(query).all()
 
     student_ids = {interaction.student_profile_id for interaction in interactions if interaction.student_profile_id is not None}
     advisee_ids = {interaction.advisee_id for interaction in interactions if interaction.advisee_id is not None}

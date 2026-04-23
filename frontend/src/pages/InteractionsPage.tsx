@@ -5,6 +5,7 @@ type Interaction = {
   id: number
   interaction_type: string
   summary: string
+  notes?: string | null
   occurred_at: string
   student_profile_id?: number | null
   advisee_id?: number | null
@@ -18,6 +19,16 @@ type InteractionTargets = {
   advisees: { id: number; name: string; student_profile_id?: number | null }[]
 }
 
+const interactionTypeOptions = [
+  { value: 'all', label: 'All Types' },
+  { value: 'manual_note', label: 'Manual Note' },
+  { value: 'office_visit', label: 'Office Visit' },
+  { value: 'email_log', label: 'Email Log' },
+  { value: 'attendance', label: 'Attendance' },
+  { value: 'file_upload', label: 'File Upload' },
+  { value: 'advising_meeting', label: 'Advising Meeting' },
+]
+
 export function InteractionsPage() {
   const [interactions, setInteractions] = useState<Interaction[]>([])
   const [targets, setTargets] = useState<InteractionTargets | null>(null)
@@ -28,22 +39,65 @@ export function InteractionsPage() {
   const [summary, setSummary] = useState('')
   const [notes, setNotes] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
 
-  async function load() {
-    const [interactionRows, targetRows] = await Promise.all([
-      api.get<Interaction[]>('/interactions/'),
-      api.get<InteractionTargets>('/interactions/targets'),
-    ])
-    setInteractions(interactionRows)
+  const [search, setSearch] = useState('')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
+  const [filterType, setFilterType] = useState('all')
+  const [sortBy, setSortBy] = useState<'occurred_at' | 'interaction_type' | 'summary' | 'id'>('occurred_at')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
+  const [limit, setLimit] = useState(400)
+
+  async function loadTargets() {
+    const targetRows = await api.get<InteractionTargets>('/interactions/targets')
     setTargets(targetRows)
-
     if (!targetId && targetRows.students.length > 0) {
       setTargetId(String(targetRows.students[0].id))
     }
   }
 
+  async function loadInteractions(
+    overrides?: Partial<{
+      search: string
+      startDate: string
+      endDate: string
+      filterType: string
+      sortBy: 'occurred_at' | 'interaction_type' | 'summary' | 'id'
+      sortOrder: 'asc' | 'desc'
+      limit: number
+    }>
+  ) {
+    setIsLoading(true)
+    setError(null)
+    try {
+      const nextSearch = overrides?.search ?? search
+      const nextStartDate = overrides?.startDate ?? startDate
+      const nextEndDate = overrides?.endDate ?? endDate
+      const nextFilterType = overrides?.filterType ?? filterType
+      const nextSortBy = overrides?.sortBy ?? sortBy
+      const nextSortOrder = overrides?.sortOrder ?? sortOrder
+      const nextLimit = overrides?.limit ?? limit
+
+      const params = new URLSearchParams()
+      if (nextSearch.trim()) params.set('search', nextSearch.trim())
+      if (nextStartDate) params.set('start_date', nextStartDate)
+      if (nextEndDate) params.set('end_date', nextEndDate)
+      if (nextFilterType !== 'all') params.set('interaction_type', nextFilterType)
+      params.set('sort_by', nextSortBy)
+      params.set('sort_order', nextSortOrder)
+      params.set('limit', String(nextLimit))
+      const rows = await api.get<Interaction[]>(`/interactions/?${params.toString()}`)
+      setInteractions(rows)
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   useEffect(() => {
-    void load().catch((err) => setError((err as Error).message))
+    void Promise.all([loadTargets(), loadInteractions()])
   }, [])
 
   const scopeOptions = useMemo(() => {
@@ -81,67 +135,143 @@ export function InteractionsPage() {
       })
       setSummary('')
       setNotes('')
-      await load()
+      await loadInteractions()
     } catch (err) {
       setError((err as Error).message)
     }
   }
 
+  function clearFilters() {
+    setSearch('')
+    setStartDate('')
+    setEndDate('')
+    setFilterType('all')
+    setSortBy('occurred_at')
+    setSortOrder('desc')
+    setLimit(400)
+  }
+
   return (
     <section>
-      <h2>Recent Interactions</h2>
-      <p>Create notes for one student, everyone in a class, or all advisees at once.</p>
-      <form className="form" onSubmit={submit}>
-        <select value={targetScope} onChange={(event) => setTargetScope(event.target.value as 'student' | 'course' | 'advisees')}>
-          <option value="student">Single Student</option>
-          <option value="course">All Students in a Class</option>
-          <option value="advisees">All Advisees</option>
-        </select>
+      <h2>Interactions</h2>
+      <p className="subtitle">Create notes for one student, everyone in a class, or all advisees. Filter and sort by dates/type to review past interactions.</p>
 
-        {targetScope !== 'advisees' ? (
-          <select value={targetId} onChange={(event) => setTargetId(event.target.value)}>
-            {scopeOptions.map((option) => (
+      <article className="card">
+        <h3>Create Interaction</h3>
+        <form className="form" onSubmit={submit}>
+          <select value={targetScope} onChange={(event) => setTargetScope(event.target.value as 'student' | 'course' | 'advisees')}>
+            <option value="student">Single Student</option>
+            <option value="course">All Students in a Class</option>
+            <option value="advisees">All Advisees</option>
+          </select>
+
+          {targetScope !== 'advisees' ? (
+            <select value={targetId} onChange={(event) => setTargetId(event.target.value)}>
+              {scopeOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <div className="card">This note will be created for all advisees in the system.</div>
+          )}
+
+          <select value={interactionType} onChange={(event) => setInteractionType(event.target.value)}>
+            <option value="manual_note">Manual Note</option>
+            <option value="office_visit">Office Visit</option>
+            <option value="email_log">Email Log</option>
+            <option value="attendance">Attendance</option>
+            <option value="file_upload">File Upload</option>
+            <option value="advising_meeting">Advising Meeting</option>
+          </select>
+
+          <input value={summary} onChange={(event) => setSummary(event.target.value)} placeholder="Interaction summary" required />
+          <textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Notes (optional)" />
+          <button type="submit">Create Interaction</button>
+        </form>
+      </article>
+
+      <article className="card" style={{ marginTop: '0.8rem' }}>
+        <h3>Find Interactions</h3>
+        <div className="gradebook-toolbar compact-grid">
+          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search summary/notes" />
+          <input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} />
+          <input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} />
+          <select value={filterType} onChange={(event) => setFilterType(event.target.value)}>
+            {interactionTypeOptions.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>
             ))}
           </select>
-        ) : (
-          <div className="card">This note will be created for all advisees in the system.</div>
-        )}
-
-        <select value={interactionType} onChange={(event) => setInteractionType(event.target.value)}>
-          <option value="manual_note">Manual Note</option>
-          <option value="office_visit">Office Visit</option>
-          <option value="email_log">Email Log</option>
-          <option value="attendance">Attendance</option>
-          <option value="file_upload">File Upload</option>
-        </select>
-
-        <input value={summary} onChange={(event) => setSummary(event.target.value)} placeholder="Interaction summary" required />
-        <textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Notes (optional)" />
-        <button type="submit">Create Interaction</button>
-      </form>
+          <select value={sortBy} onChange={(event) => setSortBy(event.target.value as 'occurred_at' | 'interaction_type' | 'summary' | 'id')}>
+            <option value="occurred_at">Sort By Date</option>
+            <option value="interaction_type">Sort By Type</option>
+            <option value="summary">Sort By Summary</option>
+            <option value="id">Sort By ID</option>
+          </select>
+          <select value={sortOrder} onChange={(event) => setSortOrder(event.target.value as 'asc' | 'desc')}>
+            <option value="desc">Newest First</option>
+            <option value="asc">Oldest First</option>
+          </select>
+          <input type="number" min={1} max={1000} value={limit} onChange={(event) => setLimit(Number(event.target.value) || 200)} placeholder="Limit" />
+          <button type="button" onClick={() => void loadInteractions()} disabled={isLoading}>
+            {isLoading ? 'Loading...' : 'Apply Filters'}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              clearFilters()
+              void loadInteractions({
+                search: '',
+                startDate: '',
+                endDate: '',
+                filterType: 'all',
+                sortBy: 'occurred_at',
+                sortOrder: 'desc',
+                limit: 400,
+              })
+            }}
+          >
+            Clear
+          </button>
+        </div>
+      </article>
 
       {error ? <p className="error">{error}</p> : null}
 
-      <ul className="list">
-        {interactions.map((interaction) => (
-          <li key={interaction.id} className="card">
-            <strong>{interaction.interaction_type}</strong>
-            <div>{interaction.summary}</div>
-            <div>
-              Target:{' '}
-              {interaction.advisee_name
-                ? `Advisee ${interaction.advisee_name}`
-                : interaction.student_name
-                  ? `Student ${interaction.student_name}`
-                  : 'General'}
-            </div>
-            <div>{new Date(interaction.occurred_at).toLocaleString()}</div>
-          </li>
-        ))}
-      </ul>
+      <article className="card students-grid-wrap" style={{ marginTop: '0.8rem' }}>
+        <table className="students-grid-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Type</th>
+              <th>Target</th>
+              <th>Summary</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            {interactions.map((interaction) => (
+              <tr key={interaction.id}>
+                <td>{new Date(interaction.occurred_at).toLocaleString()}</td>
+                <td>{interaction.interaction_type.replace('_', ' ')}</td>
+                <td>
+                  {interaction.advisee_name
+                    ? `Advisee: ${interaction.advisee_name}`
+                    : interaction.student_name
+                      ? `Student: ${interaction.student_name}`
+                      : 'General'}
+                </td>
+                <td>{interaction.summary}</td>
+                <td>{interaction.notes || ''}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {!isLoading && interactions.length === 0 ? <p>No interactions found for current filters.</p> : null}
+      </article>
     </section>
   )
 }
