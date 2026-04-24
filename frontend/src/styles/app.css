@@ -38,12 +38,12 @@ h3 {
 
 .layout {
   display: grid;
-  grid-template-columns: 300px 1fr;
+  grid-template-columns: 300px minmax(0, 1fr);
   min-height: 100vh;
 }
 
 .layout.sidebar-collapsed {
-  grid-template-columns: 84px 1fr;
+  grid-template-columns: 84px minmax(0, 1fr);
 }
 
 .sidebar {
@@ -149,9 +149,23 @@ h3 {
   color: #f8fbff;
 }
 
+a {
+  overflow-wrap: anywhere;
+}
+
 .content {
   padding: 1.5rem;
   overflow: auto;
+  min-width: 0;
+}
+
+.content > *,
+.card,
+details,
+article,
+section,
+form,
+fieldset {
   min-width: 0;
 }
 
@@ -266,14 +280,28 @@ textarea,
 button {
   font: inherit;
   border-radius: 10px;
+  max-width: 100%;
 }
 
-input,
+input:not([type='checkbox']):not([type='radio']):not([type='color']):not([type='range']):not([type='file']),
 select,
 textarea {
   border: 1px solid var(--line);
   padding: 0.52rem 0.66rem;
   background: #fffdfa;
+  min-width: 0;
+  width: 100%;
+}
+
+input[type='checkbox'],
+input[type='radio'] {
+  width: auto;
+  min-width: 1rem;
+}
+
+input[type='color'],
+input[type='range'] {
+  width: 100%;
 }
 
 textarea {
@@ -286,6 +314,9 @@ button {
   background: var(--brand);
   color: #fff;
   cursor: pointer;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 button:hover {
@@ -306,14 +337,21 @@ button:hover {
 
 .rubric-admin-layout {
   display: grid;
-  grid-template-columns: minmax(240px, 1fr) minmax(240px, 1fr) minmax(260px, 0.9fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.8rem;
   margin-top: 0.8rem;
 }
 
 .gradebook-layout {
   display: grid;
-  grid-template-columns: 1.3fr 1fr;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  gap: 0.8rem;
+  margin-top: 0.8rem;
+}
+
+.document-preview-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
   gap: 0.8rem;
   margin-top: 0.8rem;
 }
@@ -359,14 +397,14 @@ button:hover {
 }
 
 .segmented-tabs {
-  display: inline-grid;
+  display: grid;
   grid-template-columns: repeat(2, minmax(130px, 1fr));
   gap: 0.25rem;
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 0.25rem;
   background: #f7efdd;
-  width: fit-content;
+  width: min(100%, 360px);
 }
 
 .segmented-tabs button {
@@ -458,7 +496,7 @@ button:hover {
 .visual-rubric-grid {
   border: 1px solid var(--line);
   border-radius: 12px;
-  overflow: hidden;
+  overflow-x: auto;
   background: #fffdfa;
 }
 
@@ -467,6 +505,7 @@ button:hover {
   display: grid;
   grid-template-columns: minmax(220px, 0.75fr) minmax(420px, 1.7fr) minmax(180px, 0.55fr);
   gap: 0;
+  min-width: 820px;
 }
 
 .visual-rubric-head {
@@ -682,7 +721,7 @@ button:hover {
 
 .report-builder-shell {
   display: grid;
-  grid-template-columns: minmax(230px, 0.72fr) minmax(420px, 1.35fr) minmax(300px, 0.9fr);
+  grid-template-columns: minmax(220px, 0.72fr) minmax(0, 1.35fr) minmax(260px, 0.9fr);
   gap: 0.85rem;
   align-items: start;
 }
@@ -834,7 +873,7 @@ button:hover {
 
 .report-preview-table > div {
   display: grid;
-  grid-template-columns: minmax(0, 1.3fr) minmax(80px, 0.5fr) minmax(60px, 0.35fr);
+  grid-template-columns: minmax(0, 1.3fr) minmax(70px, 0.5fr) minmax(56px, 0.35fr);
   gap: 0.55rem;
   align-items: center;
   border-top: 1px solid rgba(27, 40, 64, 0.1);
@@ -1211,6 +1250,55 @@ pre {
   overflow-x: auto;
 }
 
+@media (max-width: 1320px) {
+  .report-builder-shell {
+    grid-template-columns: minmax(220px, 0.8fr) minmax(0, 1.2fr);
+  }
+
+  .report-inspector {
+    grid-column: 1 / -1;
+    position: static;
+    max-height: none;
+  }
+}
+
+@media (max-width: 1180px) {
+  .layout {
+    grid-template-columns: 260px minmax(0, 1fr);
+  }
+
+  .rubric-admin-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .gradebook-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .document-preview-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .gradebook-workspace.details-visible,
+  .gradebook-workspace.details-expanded {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .gradebook-details-pane,
+  .report-template-rail,
+  .report-inspector {
+    position: static;
+    max-height: none;
+  }
+}
+
+@media (max-width: 1040px) {
+  .report-builder-shell,
+  .rubric-admin-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 @media (max-width: 880px) {
   .layout {
     grid-template-columns: 1fr;
@@ -1225,9 +1313,37 @@ pre {
     height: auto;
     border-right: 0;
     border-bottom: 1px solid var(--line);
+    padding: 0.85rem;
+  }
+
+  .sidebar h1 {
+    font-size: 1.75rem;
+  }
+
+  .sidebar nav {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.35rem;
+  }
+
+  .sidebar .nav-link {
+    margin: 0;
+    min-width: 0;
+  }
+
+  .sidebar-top-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .sidebar .subtitle {
+    margin-bottom: 0.65rem;
   }
 
   .gradebook-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .document-preview-layout {
     grid-template-columns: 1fr;
   }
 
@@ -1297,6 +1413,7 @@ pre {
 
   .visual-rubric-row {
     grid-template-columns: 1fr;
+    min-width: 0;
   }
 
   .visual-rubric-row > div {
@@ -1329,5 +1446,36 @@ pre {
 
   .rubric-report-points {
     justify-items: start;
+  }
+}
+
+@media (max-width: 520px) {
+  .content {
+    padding: 1rem;
+  }
+
+  .report-stat-row,
+  .report-color-grid,
+  .section-option-row {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar-top-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .command-palette-backdrop {
+    padding: 0.75rem;
+  }
+
+  .command-palette {
+    width: 100%;
+  }
+}
+
+@media (max-width: 360px) {
+  .sidebar nav,
+  .sidebar-top-row {
+    grid-template-columns: 1fr;
   }
 }

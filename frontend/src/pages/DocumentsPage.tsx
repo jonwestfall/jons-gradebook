@@ -372,7 +372,7 @@ export function DocumentsPage() {
         <article className="card" style={{ marginTop: '0.8rem' }}>
           <h3>Quick Preview: {selectedDocument.title}</h3>
           {previewLoading ? <p>Loading preview...</p> : null}
-          <div className="gradebook-layout" style={{ gridTemplateColumns: '1.2fr 1fr' }}>
+          <div className="document-preview-layout">
             <div className="card">
               <h3>Document View</h3>
               {selectedDocument.document_type === 'pdf' && previewUrl ? (
