@@ -87,6 +87,74 @@ function mockApiFetch() {
       return jsonResponse([])
     }
 
+    if (url.includes('/api/v1/llm/targets')) {
+      return jsonResponse({
+        students: [{ id: 42, name: 'Ada Lovelace', email: 'ada@example.edu', student_number: 'S-42' }],
+        documents: [
+          {
+            id: 99,
+            title: 'Paper Draft',
+            category: 'Student Work',
+            document_type: 'txt',
+            owner_type: 'student',
+            owner_id: 42,
+            linked_student_ids: [42],
+            updated_at: '2026-04-24T12:00:00',
+          },
+        ],
+        rubrics: [{ id: 3, name: 'Research Rubric', description: 'Research writing', max_points: 10 }],
+        providers: [
+          { value: 'ollama', label: 'Ollama', default_model: 'llama3.1', local: true },
+          { value: 'openai', label: 'OpenAI', default_model: 'gpt-5-mini', local: false },
+        ],
+      })
+    }
+
+    if (url.includes('/api/v1/llm/instructions')) {
+      return jsonResponse([
+        {
+          id: 12,
+          name: 'Paper Feedback',
+          description: 'Balanced feedback.',
+          task_type: 'feedback',
+          instructions: 'Read the paper and provide feedback.',
+          output_guidance: 'Use sections.',
+          rubric_guidance: 'Do not score.',
+          is_active: true,
+          is_default: true,
+          archived_at: null,
+        },
+      ])
+    }
+
+    if (url.includes('/api/v1/llm/workbench/jobs')) {
+      return jsonResponse([
+        {
+          id: 21,
+          student_profile_id: 42,
+          student_name: 'Ada Lovelace',
+          source_document_id: 99,
+          source_document_title: 'Paper Draft',
+          instruction_template_id: 12,
+          instruction_template_name: 'Paper Feedback',
+          rubric_id: null,
+          rubric_name: null,
+          final_document_id: null,
+          provider: 'ollama',
+          model: 'llama3.1',
+          status: 'prompt_ready',
+          final_feedback: '',
+          metadata_json: {},
+          run: {
+            id: 33,
+            preview: 'TRUSTED INSTRUCTIONS\n\nUNTRUSTED STUDENT WORK TO ANALYZE',
+            deidentify_map: { '[NAME_1]': 'Ada Lovelace' },
+            outputs: [],
+          },
+        },
+      ])
+    }
+
     if (url.includes('/api/v1/reports/students/42/preview')) {
       return jsonResponse({
         student_id: 42,
@@ -288,5 +356,17 @@ describe('App smoke routes', () => {
     expect(await screen.findByText('Report Builder')).toBeInTheDocument()
     expect((await screen.findAllByText('Progress Snapshot')).length).toBeGreaterThan(0)
     expect(await screen.findByText('Student Snapshot')).toBeInTheDocument()
+  })
+
+  it('renders the LLM student feedback workflow route', async () => {
+    render(
+      <MemoryRouter initialEntries={['/llm']}>
+        <App />
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByText('Student Feedback Workbench')).toBeInTheDocument()
+    expect(await screen.findByText('Paper Feedback')).toBeInTheDocument()
+    expect(await screen.findByText('Replacement Map')).toBeInTheDocument()
   })
 })

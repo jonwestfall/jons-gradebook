@@ -23,10 +23,15 @@ If work is not committed yet, use `commit WORKTREE` temporarily and replace it a
 ---
 
 ## 2026-04-24
+- [commit WORKTREE] [area: docs] Rewrote README as a professor-facing introduction covering core functions, hosted-LMS companion benefits, safety boundaries, setup, walkthrough, and validation guidance.
+- [commit WORKTREE] [area: docs/testing] Updated roadmap, backlog, testing strategy, and QA checklists to reflect the current Reports and LLM Workbench workflows and new-user evaluation path.
 - [commit WORKTREE] [area: backend] Added report template, template asset, and report run persistence with migration `20260424_0015`.
 - [commit WORKTREE] [area: backend] Refactored student report generation to use editable template config, theme/logo rendering, and generated PDF/PNG document linking.
 - [commit WORKTREE] [area: frontend] Rebuilt `/reports` as a structured report template builder with live preview, section controls, branding controls, export actions, and report history.
 - [commit WORKTREE] [area: docs/testing] Updated README, roadmap, testing strategy, QA checklist, and smoke coverage for templated reports.
+- [commit WORKTREE] [area: backend] Added LLM instruction templates, workbench jobs, encrypted de-identification maps, upload/existing-document job creation, local Ollama send, pasted output capture, and final feedback document persistence with migration `20260424_0016`.
+- [commit WORKTREE] [area: frontend] Rebuilt `/llm` as a privacy-first student feedback workflow with source selection, prompt preview/copy, output capture, final feedback editing, job history, and template inspector controls.
+- [commit WORKTREE] [area: docs/testing] Updated README, roadmap, testing strategy, QA checklists, and smoke coverage for the LLM Workbench student feedback workflow.
 
 ## 2026-04-23
 - [commit WORKTREE] [area: backend] Added new dashboard router and summary endpoint for action-first triage cards and top-risk students.

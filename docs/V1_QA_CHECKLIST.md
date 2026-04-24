@@ -1,6 +1,6 @@
 # V1 QA Checklist
 
-Status note (2026-04-23): V1 remains the accepted baseline checklist.
+Status note (2026-04-24): V1 remains the accepted baseline checklist. Newer Reports and LLM Workbench workflows are covered more fully in the V2 checklist.
 
 For active workflow-hardening validation (match queue, tasks, audit/undo, advising meetings, and quick preview), use:
 - `docs/V2_WORKFLOW_QA_CHECKLIST.md`
@@ -136,6 +136,7 @@ Use this checklist to validate V1 end-to-end before release or major merge.
 - [ ] Report template section toggles and ordering update the live preview.
 - [ ] Single-student report generation creates PDF and PNG links.
 - [ ] Generated report artifacts appear as `Report` documents for the student.
+- [ ] Documents page can act as the central repository while Student Profile shows linked student documents.
 
 ## 7) Backup + Restore
 
@@ -156,7 +157,8 @@ Use this checklist to validate V1 end-to-end before release or major merge.
 - [ ] Sensitive field encryption path works (no plaintext leak in API payloads where not intended).
 - [ ] File uploads are stored encrypted at rest.
 - [ ] De-identification preview required before LLM send.
-- [ ] De-identified prompts and mapping exports/audit views are accessible.
+- [ ] De-identified prompts and encrypted mapping audit views are accessible.
+- [ ] LLM Workbench saves only original student work and instructor-approved final feedback as student documents by default.
 
 ## 9) Final Regression Sweep
 

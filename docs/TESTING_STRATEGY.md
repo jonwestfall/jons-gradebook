@@ -1,8 +1,8 @@
 # Testing Strategy
 
-This document defines current quality gates and the planned expansion path for Jon's Gradebook.
+This document defines current quality gates and the planned expansion path for Jon's Gradebook. The goal is to protect the workflows a professor would trust day to day: Canvas sync, grade review, advising follow-up, document storage, report generation, and privacy-first LLM-assisted feedback.
 
-## Current Test Gates (as of 2026-04-23)
+## Current Test Gates (as of 2026-04-24)
 
 ## Frontend
 
@@ -17,6 +17,7 @@ npm run test
 - Current scope:
   - route-level smoke coverage for key pages
   - verifies app shell + primary workflow routes render under mocked API
+  - includes LLM Workbench smoke coverage for templates, job history, and inspector surfaces
 
 ### 2) Type/build gate
 
@@ -54,6 +55,8 @@ alembic upgrade head
 - Baseline V1: `docs/V1_QA_CHECKLIST.md`
 - Active workflow hardening QA: `docs/V2_WORKFLOW_QA_CHECKLIST.md`
 
+Manual QA remains important because many workflows are visual and operational: a route can compile while still being awkward for repeated instructor use or cramped on a laptop display.
+
 ## Target Coverage Expansion (Next)
 
 ## Backend test expansion
@@ -65,10 +68,14 @@ alembic upgrade head
 - `/courses/{id}/message-candidates` and `/message-students`
 - `/students/{id}/risk`
 - `/advising/meetings`
+- `/reports/templates`, `/reports/students/{id}/preview`, `/reports/students/{id}`, and `/reports/runs`
+- `/llm/instructions`, `/llm/workbench/jobs`, prompt preparation, output capture, and finalization
 
 2. Add service tests for:
 - risk scoring edge cases (no grades, no attendance, no interactions)
 - intervention trigger deduplication behavior
+- report renderer config normalization and document artifact creation
+- LLM de-identification map encryption and source-document ownership/link checks
 
 3. Add migration tests:
 - upgrade from previous head to latest
@@ -83,6 +90,8 @@ alembic upgrade head
 - Task queue inline status/priority edits
 - Advising meeting create -> task conversion path
 - Document preview loading and fallback behaviors
+- Report builder section/theme edits and generation history
+- LLM Workbench upload/existing source, prompt preparation, output paste, and final feedback save
 
 2. Add persistence tests:
 - saved views in students/interactions/gradebook
@@ -101,7 +110,20 @@ alembic upgrade head
 - advising meeting conversion
 - message follow-up options
 4. Report template editing, PDF/PNG generation, generated artifact links in Documents/Profile, and document preview integrity
-5. Sync event pagination/filtering and no-crash UI behavior
+5. LLM Workbench upload/existing-document source selection, de-identification review, copy/local output path, final feedback save, and Documents/Profile visibility
+6. Sync event pagination/filtering and no-crash UI behavior
+
+## Professor-Evaluation Smoke Path
+
+Use this when introducing the app to a new faculty user:
+
+1. Start the app and explain that Canvas sync is read-only in the current phase.
+2. Show the dashboard and how it gathers actionable work into one page.
+3. Open a course gradebook, demonstrate a local edit, and show the audit/undo trail.
+4. Open a student profile and show grades, attendance, interactions, documents, reports, and feedback artifacts together.
+5. Upload or preview a document.
+6. Generate a student report and confirm it appears in Documents/Profile.
+7. Prepare an LLM Workbench prompt from sample student work, show de-identification, paste or run local output, and save edited final feedback.
 
 ## Release Validation Recommendation
 

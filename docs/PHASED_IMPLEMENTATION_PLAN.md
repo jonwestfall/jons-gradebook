@@ -1,8 +1,8 @@
 # Phased Implementation Plan
 
-This plan tracks what is shipped, what is in-flight, and what is next for Jon's Gradebook as a single-instructor, action-first cockpit.
+This plan tracks what is shipped, what is in-flight, and what is next for Jon's Gradebook as a single-instructor, action-first cockpit. The product direction is to complement a hosted LMS with a private instructor-controlled operations layer for triage, advising, document handling, reporting, and reviewed AI-assisted feedback.
 
-## Progress Snapshot (Updated 2026-04-23)
+## Progress Snapshot (Updated 2026-04-24)
 
 ### Phase status
 - V1 Baseline: complete (accepted)
@@ -31,6 +31,16 @@ This plan tracks what is shipped, what is in-flight, and what is next for Jon's 
 - Document quick preview in Documents page:
   - inline PDF preview
   - extracted text side panel
+- Student report template builder:
+  - editable student report presets
+  - live preview
+  - PDF/PNG export
+  - generated artifact links into Documents and Student Profile
+- LLM Workbench student-feedback workflow:
+  - original-paper document save
+  - de-identified prompt preparation
+  - copy/paste or local Ollama output capture
+  - instructor-edited final feedback document save
 
 #### Risk and intervention foundations
 - Student risk service and student risk endpoint (`/students/{id}/risk`).
@@ -70,6 +80,8 @@ This plan tracks what is shipped, what is in-flight, and what is next for Jon's 
 - Risk service + intervention triggers
 - Advising meeting capture UX + task conversion
 - Document quick preview
+- Report template builder and generated document linking
+- LLM Workbench student feedback workflow
 - Saved views + command palette + density toggle
 - Frontend smoke tests and build gate
 
@@ -81,18 +93,19 @@ This plan tracks what is shipped, what is in-flight, and what is next for Jon's 
 
 ## Phase 3: Analytics + Messaging Expansion
 
-- Student report template builder with editable sections, theme/logo branding, preview, PDF/PNG export, report history, and generated artifact links into Documents
 - Cross-course risk and trend analytics dashboards
 - Outreach template library enhancements with richer defaults
 - Cohort-level progress and completion trend views
 - Intervention quality reporting (task completion outcomes)
+- Report-pack expansion for cohort and advising-summary use cases beyond single-student reports
 
 ## Phase 4: LLM Productionization
 
-- Prompt/version governance and approval flows
+- Prompt/version governance and approval review for instruction templates
 - Provider routing fallback policy
 - Evaluation layer for output quality and hallucination checks
 - De-identification policy packs by institution
+- Optional richer final-feedback document formats after the text/PDF-friendly baseline
 
 ## Phase 5: Canvas Write-Back (Deferred)
 

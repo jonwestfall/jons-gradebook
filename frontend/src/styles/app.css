@@ -356,6 +356,115 @@ button:hover {
   margin-top: 0.8rem;
 }
 
+.page-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: start;
+  margin-bottom: 0.8rem;
+}
+
+.llm-workbench-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 320px) minmax(560px, 1fr) minmax(300px, 340px);
+  gap: 0.8rem;
+  align-items: start;
+}
+
+.llm-rail,
+.llm-inspector {
+  position: sticky;
+  top: 0.6rem;
+  max-height: calc(100vh - 2.2rem);
+  overflow: auto;
+}
+
+.llm-main-flow {
+  display: grid;
+  gap: 0.8rem;
+  min-width: 0;
+}
+
+.llm-workbench-layout > *,
+.llm-main-flow > * {
+  min-width: 0;
+}
+
+.llm-step-header,
+.llm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.llm-actions {
+  justify-content: flex-start;
+}
+
+.llm-actions button {
+  flex: 0 1 auto;
+}
+
+.llm-prompt-preview,
+.llm-output-preview,
+.llm-map-preview {
+  max-height: 380px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fffdfa;
+  padding: 0.7rem;
+}
+
+.llm-map-preview {
+  max-height: 220px;
+  font-size: 0.82rem;
+}
+
+.llm-job-card {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.llm-job-card.active {
+  border-color: var(--brand);
+  background: #fff5df;
+}
+
+.llm-job-card button {
+  width: 100%;
+}
+
+.llm-job-card span,
+.llm-job-card small {
+  overflow-wrap: anywhere;
+}
+
+.llm-inspector-grid {
+  display: grid;
+  grid-template-columns: minmax(90px, 0.55fr) minmax(0, 1fr);
+  gap: 0.45rem 0.65rem;
+  align-items: start;
+  margin: 0.7rem 0;
+}
+
+.llm-inspector-grid span {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.compact-form textarea {
+  min-height: 92px;
+}
+
+.segmented-tabs.full {
+  width: 100%;
+}
+
 .gradebook-toolbar {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -1250,6 +1359,18 @@ pre {
   overflow-x: auto;
 }
 
+@media (max-width: 1660px) {
+  .llm-workbench-layout {
+    grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+  }
+
+  .llm-inspector {
+    grid-column: 1 / -1;
+    position: static;
+    max-height: none;
+  }
+}
+
 @media (max-width: 1320px) {
   .report-builder-shell {
     grid-template-columns: minmax(220px, 0.8fr) minmax(0, 1.2fr);
@@ -1285,6 +1406,8 @@ pre {
   }
 
   .gradebook-details-pane,
+  .llm-rail,
+  .llm-inspector,
   .report-template-rail,
   .report-inspector {
     position: static;
@@ -1293,6 +1416,7 @@ pre {
 }
 
 @media (max-width: 1040px) {
+  .llm-workbench-layout,
   .report-builder-shell,
   .rubric-admin-layout {
     grid-template-columns: minmax(0, 1fr);
@@ -1362,6 +1486,8 @@ pre {
   }
 
   .page-heading-row,
+  .page-heading,
+  .llm-step-header,
   .rail-header,
   .section-editor-topline {
     align-items: stretch;
