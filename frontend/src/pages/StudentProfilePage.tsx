@@ -2,6 +2,34 @@ import { FormEvent, useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { api } from '../api/client'
 
+type RubricEvaluation = {
+  id: number
+  rubric_id: number
+  rubric_name?: string | null
+  rubric_max_points?: number | null
+  student_profile_id?: number | null
+  course_id?: number | null
+  course_name?: string | null
+  assignment_id?: number | null
+  assignment_title?: string | null
+  evaluator_notes?: string | null
+  total_points?: number | null
+  created_at: string
+  items: {
+    id: number
+    criterion_id: number
+    criterion_title?: string | null
+    criterion_type?: string | null
+    criterion_max_points?: number | null
+    rating_id?: number | null
+    rating_title?: string | null
+    rating_description?: string | null
+    points_awarded?: number | null
+    is_checked?: boolean | null
+    narrative_comment?: string | null
+  }[]
+}
+
 type Profile = {
   student: {
     id: number
@@ -88,6 +116,7 @@ export function StudentProfilePage() {
   const [documentFile, setDocumentFile] = useState<File | null>(null)
   const [documentLinkStudentIds, setDocumentLinkStudentIds] = useState<string[]>([])
   const [documentTargets, setDocumentTargets] = useState<{ id: number; name: string; email?: string | null }[]>([])
+  const [rubricEvaluations, setRubricEvaluations] = useState<RubricEvaluation[]>([])
 
   async function loadProfile() {
     if (!studentId) return
@@ -101,13 +130,19 @@ export function StudentProfilePage() {
     setDocumentLinkStudentIds((current) => (current.length > 0 ? current : [String(data.student.id)]))
   }
 
+  async function loadRubricEvaluations() {
+    if (!studentId) return
+    const rows = await api.get<RubricEvaluation[]>(`/rubrics/evaluations?student_profile_id=${studentId}&limit=100`)
+    setRubricEvaluations(rows.filter((row) => row.assignment_id !== null && row.assignment_id !== undefined))
+  }
+
   async function loadDocumentTargets() {
     const response = await api.get<{ students: { id: number; name: string; email?: string | null }[] }>('/documents/targets')
     setDocumentTargets(response.students)
   }
 
   useEffect(() => {
-    void loadProfile()
+    void Promise.all([loadProfile(), loadRubricEvaluations()])
   }, [studentId])
 
   useEffect(() => {
@@ -245,9 +280,12 @@ export function StudentProfilePage() {
       )}
       <p>Priority order: {profile.priority_sections.join(' > ')}</p>
 
-      <div className="grid">
-        <article className="card">
-          <h3>Alerts</h3>
+      <div className="profile-accordion">
+        <details className="card" open>
+          <summary>
+            <strong>Alerts</strong>
+            <span>{profile.alerts.length} active or historical alerts</span>
+          </summary>
           <form className="form" onSubmit={addAlert}>
             <input placeholder="Alert title" value={alertTitle} onChange={(e) => setAlertTitle(e.target.value)} required />
             <textarea
@@ -275,10 +313,13 @@ export function StudentProfilePage() {
               </li>
             ))}
           </ul>
-        </article>
+        </details>
 
-        <article className="card">
-          <h3>Flags / Tags</h3>
+        <details className="card">
+          <summary>
+            <strong>Flags / Tags</strong>
+            <span>{profile.flags_tags.length} saved tags</span>
+          </summary>
           <form className="form" onSubmit={addTag}>
             <input placeholder="Add tag" value={newTag} onChange={(e) => setNewTag(e.target.value)} required />
             <button type="submit">Add Tag</button>
@@ -290,151 +331,242 @@ export function StudentProfilePage() {
               </li>
             ))}
           </ul>
-        </article>
+        </details>
 
-        <article className="card">
-          <h3>Attendance Summary</h3>
+        <details className="card">
+          <summary>
+            <strong>Attendance Summary</strong>
+            <span>{profile.attendance_summary.total_records} records</span>
+          </summary>
           <div>Present: {profile.attendance_summary.present}</div>
           <div>Absent: {profile.attendance_summary.absent}</div>
           <div>Tardy: {profile.attendance_summary.tardy}</div>
           <div>Excused: {profile.attendance_summary.excused}</div>
           <div>Total: {profile.attendance_summary.total_records}</div>
-        </article>
+        </details>
       </div>
 
-      <h3>Notes</h3>
-      <form className="form" onSubmit={saveNotes}>
-        <textarea value={notesDraft} onChange={(event) => setNotesDraft(event.target.value)} placeholder="Student notes" />
-        <button type="submit">Save Notes</button>
-      </form>
+      <div className="profile-accordion">
+        <details className="card" open>
+          <summary>
+            <strong>Notes</strong>
+            <span>{notesDraft.trim() ? 'Notes saved for this student' : 'No notes yet'}</span>
+          </summary>
+          <form className="form" onSubmit={saveNotes}>
+            <textarea value={notesDraft} onChange={(event) => setNotesDraft(event.target.value)} placeholder="Student notes" />
+            <button type="submit">Save Notes</button>
+          </form>
+        </details>
 
-      <h3>Grade Overview</h3>
-      <ul className="list">
-        {profile.grade_overview.map((course) => (
-          <li key={course.course_id} className="card">
-            <strong>{course.course_name}</strong> - {course.earned}/{course.possible} ({course.percent ?? 'N/A'}%)
-          </li>
-        ))}
-      </ul>
+        <details className="card" open>
+          <summary>
+            <strong>Grade Overview</strong>
+            <span>{profile.grade_overview.length} courses with grades</span>
+          </summary>
+          <ul className="list">
+            {profile.grade_overview.map((course) => (
+              <li key={course.course_id} className="card">
+                <strong>{course.course_name}</strong> - {course.earned}/{course.possible} ({course.percent ?? 'N/A'}%)
+              </li>
+            ))}
+            {profile.grade_overview.length === 0 ? <li className="card">No grade overview yet.</li> : null}
+          </ul>
+        </details>
+      </div>
 
-      <h3>Courses</h3>
-      <ul className="list">
-        {profile.courses.map((course) => (
-          <li key={course.course_id} className="card">
-            <strong>
-              {course.name} ({course.section_name || 'No section'})
-            </strong>
-            <div>
-              Course Total: {course.totals.earned}/{course.totals.possible} ({course.totals.percent ?? 'N/A'}%)
-            </div>
-            <div className="card" style={{ marginTop: '0.6rem', overflowX: 'auto' }}>
-              <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 720 }}>
-                <thead>
-                  <tr>
-                    <th style={{ textAlign: 'left', padding: '0.35rem' }}>Assignment</th>
-                    <th style={{ textAlign: 'left', padding: '0.35rem' }}>Due</th>
-                    <th style={{ textAlign: 'left', padding: '0.35rem' }}>Score</th>
-                    <th style={{ textAlign: 'left', padding: '0.35rem' }}>Points</th>
-                    <th style={{ textAlign: 'left', padding: '0.35rem' }}>Percent</th>
-                    <th style={{ textAlign: 'left', padding: '0.35rem' }}>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {course.assignments.map((assignment) => (
-                    <tr key={assignment.assignment_id}>
-                      <td style={{ borderTop: '1px solid #d5c8aa', padding: '0.35rem' }}>{assignment.title}</td>
-                      <td style={{ borderTop: '1px solid #d5c8aa', padding: '0.35rem' }}>
-                        {assignment.due_at ? new Date(assignment.due_at).toLocaleDateString() : 'N/A'}
-                      </td>
-                      <td style={{ borderTop: '1px solid #d5c8aa', padding: '0.35rem' }}>
-                        {assignment.score ?? '—'}
-                      </td>
-                      <td style={{ borderTop: '1px solid #d5c8aa', padding: '0.35rem' }}>
-                        {assignment.points_possible ?? 'N/A'}
-                      </td>
-                      <td style={{ borderTop: '1px solid #d5c8aa', padding: '0.35rem' }}>
-                        {assignment.percent ?? 'N/A'}%
-                      </td>
-                      <td style={{ borderTop: '1px solid #d5c8aa', padding: '0.35rem' }}>{assignment.status}</td>
-                    </tr>
+      <div className="profile-accordion">
+        <details className="card" open>
+          <summary>
+            <strong>Courses</strong>
+            <span>{profile.courses.length} enrolled courses</span>
+          </summary>
+          <div className="nested-accordion">
+            {profile.courses.map((course) => (
+              <details key={course.course_id} className="card" open>
+                <summary>
+                  <strong>
+                    {course.name} ({course.section_name || 'No section'})
+                  </strong>
+                  <span>
+                    {course.totals.earned}/{course.totals.possible} ({course.totals.percent ?? 'N/A'}%)
+                  </span>
+                </summary>
+                <div className="card" style={{ marginTop: '0.6rem', overflowX: 'auto' }}>
+                  <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 720 }}>
+                    <thead>
+                      <tr>
+                        <th style={{ textAlign: 'left', padding: '0.35rem' }}>Assignment</th>
+                        <th style={{ textAlign: 'left', padding: '0.35rem' }}>Due</th>
+                        <th style={{ textAlign: 'left', padding: '0.35rem' }}>Score</th>
+                        <th style={{ textAlign: 'left', padding: '0.35rem' }}>Points</th>
+                        <th style={{ textAlign: 'left', padding: '0.35rem' }}>Percent</th>
+                        <th style={{ textAlign: 'left', padding: '0.35rem' }}>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {course.assignments.map((assignment) => (
+                        <tr key={assignment.assignment_id}>
+                          <td style={{ borderTop: '1px solid #d5c8aa', padding: '0.35rem' }}>{assignment.title}</td>
+                          <td style={{ borderTop: '1px solid #d5c8aa', padding: '0.35rem' }}>
+                            {assignment.due_at ? new Date(assignment.due_at).toLocaleDateString() : 'N/A'}
+                          </td>
+                          <td style={{ borderTop: '1px solid #d5c8aa', padding: '0.35rem' }}>
+                            {assignment.score ?? '—'}
+                          </td>
+                          <td style={{ borderTop: '1px solid #d5c8aa', padding: '0.35rem' }}>
+                            {assignment.points_possible ?? 'N/A'}
+                          </td>
+                          <td style={{ borderTop: '1px solid #d5c8aa', padding: '0.35rem' }}>
+                            {assignment.percent ?? 'N/A'}%
+                          </td>
+                          <td style={{ borderTop: '1px solid #d5c8aa', padding: '0.35rem' }}>{assignment.status}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </details>
+            ))}
+            {profile.courses.length === 0 ? <div className="card">No enrolled courses.</div> : null}
+          </div>
+        </details>
+      </div>
+
+      <div className="profile-accordion">
+        <details className="card" open>
+          <summary>
+            <strong>Scored Assignment Rubrics</strong>
+            <span>{rubricEvaluations.length} assignment rubric scores</span>
+          </summary>
+          <div className="nested-accordion">
+            {rubricEvaluations.map((evaluation) => (
+              <details key={evaluation.id} className="card">
+                <summary>
+                  <strong>{evaluation.assignment_title || 'Assignment rubric'}</strong>
+                  <span>
+                    {evaluation.rubric_name || 'Rubric'} - {evaluation.total_points ?? 'N/A'}
+                    {evaluation.rubric_max_points !== null && evaluation.rubric_max_points !== undefined
+                      ? ` / ${evaluation.rubric_max_points}`
+                      : ''}
+                  </span>
+                </summary>
+                <div className="table-subtle">
+                  {evaluation.course_name || 'No course'} - scored {new Date(evaluation.created_at).toLocaleDateString()}
+                </div>
+                <div className="rubric-report-grid" style={{ marginTop: '0.6rem' }}>
+                  {evaluation.items.map((item) => (
+                    <div key={item.id} className="rubric-report-row">
+                      <div>
+                        <strong>{item.criterion_title || 'Criterion'}</strong>
+                        <span>{item.criterion_type || 'criterion'}</span>
+                      </div>
+                      <div>
+                        <strong>{item.rating_title || (item.is_checked ? 'Checked' : 'No rating')}</strong>
+                        <span>{item.rating_description || item.narrative_comment || 'No additional feedback'}</span>
+                      </div>
+                      <div className="rubric-report-points">
+                        {item.points_awarded ?? 'N/A'}
+                        {item.criterion_max_points !== null && item.criterion_max_points !== undefined
+                          ? ` / ${item.criterion_max_points}`
+                          : ''}
+                      </div>
+                    </div>
                   ))}
-                </tbody>
-              </table>
-            </div>
-          </li>
-        ))}
-      </ul>
+                  {evaluation.items.length === 0 ? (
+                    <div className="rubric-report-row muted-row">No criterion-level details saved for this evaluation.</div>
+                  ) : null}
+                </div>
+                {evaluation.evaluator_notes ? <p className="rubric-report-notes">{evaluation.evaluator_notes}</p> : null}
+              </details>
+            ))}
+            {rubricEvaluations.length === 0 ? <div className="card">No scored assignment rubrics for this student.</div> : null}
+          </div>
+        </details>
+      </div>
 
-      <h3>Recent Interactions</h3>
-      <ul className="list">
-        {profile.recent_interactions.map((interaction) => (
-          <li key={interaction.id} className="card">
-            {interaction.type} - {interaction.summary}
-          </li>
-        ))}
-      </ul>
+      <div className="profile-accordion">
+        <details className="card">
+          <summary>
+            <strong>Recent Interactions</strong>
+            <span>{profile.recent_interactions.length} recent entries</span>
+          </summary>
+          <ul className="list">
+            {profile.recent_interactions.map((interaction) => (
+              <li key={interaction.id} className="card">
+                {interaction.type} - {interaction.summary}
+              </li>
+            ))}
+            {profile.recent_interactions.length === 0 ? <li className="card">No recent interactions.</li> : null}
+          </ul>
+        </details>
 
-      <h3>Student Documents</h3>
-      <article className="card">
-        <form className="form" onSubmit={uploadDocument}>
-          <input
-            value={documentTitle}
-            onChange={(event) => setDocumentTitle(event.target.value)}
-            placeholder="Document title"
-          />
-          <label>
-            Link to students (multi-select)
-            <select
-              multiple
-              size={7}
-              value={documentLinkStudentIds}
-              onChange={(event) => {
-                const values = Array.from(event.target.selectedOptions).map((option) => option.value)
-                setDocumentLinkStudentIds(values)
-              }}
-            >
-              {documentTargets.map((student) => (
-                <option key={student.id} value={student.id}>
-                  {student.name}
-                  {student.email ? ` (${student.email})` : ''}
-                </option>
-              ))}
-            </select>
-          </label>
-          <input
-            type="file"
-            onChange={(event) => {
-              const selected = event.target.files?.[0]
-              if (selected) setDocumentFile(selected)
-            }}
-            required
-          />
-          <button type="submit">Attach Document</button>
-        </form>
-      </article>
-      <ul className="list">
-        {profile.student_documents.map((document) => (
-          <li key={document.id} className="card">
-            <strong>{document.title}</strong>
-            <div>Category: {document.category || 'Other'}</div>
-            <div>Type: {document.document_type}</div>
-            <div>Version: {document.current_version}</div>
-            <div>Filename: {document.latest_filename || 'N/A'}</div>
-            <div>Size: {document.latest_size_bytes ? `${document.latest_size_bytes.toLocaleString()} B` : 'N/A'}</div>
-            <div>Updated: {document.updated_at ? new Date(document.updated_at).toLocaleString() : 'N/A'}</div>
-            <div style={{ marginTop: '0.35rem' }}>
-              <a href={`/api/v1/documents/${document.id}/download`} target="_blank" rel="noreferrer">
-                Download
-              </a>{' '}
-              |{' '}
-              <a href={`/api/v1/documents/${document.id}/text`} target="_blank" rel="noreferrer">
-                View Extracted Text
-              </a>
-            </div>
-          </li>
-        ))}
-        {profile.student_documents.length === 0 ? <li className="card">No documents linked.</li> : null}
-      </ul>
+        <details className="card">
+          <summary>
+            <strong>Student Documents</strong>
+            <span>{profile.student_documents.length} linked documents</span>
+          </summary>
+          <article className="card">
+            <form className="form" onSubmit={uploadDocument}>
+              <input
+                value={documentTitle}
+                onChange={(event) => setDocumentTitle(event.target.value)}
+                placeholder="Document title"
+              />
+              <label>
+                Link to students (multi-select)
+                <select
+                  multiple
+                  size={7}
+                  value={documentLinkStudentIds}
+                  onChange={(event) => {
+                    const values = Array.from(event.target.selectedOptions).map((option) => option.value)
+                    setDocumentLinkStudentIds(values)
+                  }}
+                >
+                  {documentTargets.map((student) => (
+                    <option key={student.id} value={student.id}>
+                      {student.name}
+                      {student.email ? ` (${student.email})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <input
+                type="file"
+                onChange={(event) => {
+                  const selected = event.target.files?.[0]
+                  if (selected) setDocumentFile(selected)
+                }}
+                required
+              />
+              <button type="submit">Attach Document</button>
+            </form>
+          </article>
+          <ul className="list">
+            {profile.student_documents.map((document) => (
+              <li key={document.id} className="card">
+                <strong>{document.title}</strong>
+                <div>Category: {document.category || 'Other'}</div>
+                <div>Type: {document.document_type}</div>
+                <div>Version: {document.current_version}</div>
+                <div>Filename: {document.latest_filename || 'N/A'}</div>
+                <div>Size: {document.latest_size_bytes ? `${document.latest_size_bytes.toLocaleString()} B` : 'N/A'}</div>
+                <div>Updated: {document.updated_at ? new Date(document.updated_at).toLocaleString() : 'N/A'}</div>
+                <div style={{ marginTop: '0.35rem' }}>
+                  <a href={`/api/v1/documents/${document.id}/download`} target="_blank" rel="noreferrer">
+                    Download
+                  </a>{' '}
+                  |{' '}
+                  <a href={`/api/v1/documents/${document.id}/text`} target="_blank" rel="noreferrer">
+                    View Extracted Text
+                  </a>
+                </div>
+              </li>
+            ))}
+            {profile.student_documents.length === 0 ? <li className="card">No documents linked.</li> : null}
+          </ul>
+        </details>
+      </div>
     </section>
   )
 }

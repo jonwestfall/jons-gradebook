@@ -81,11 +81,18 @@ def _serialize_evaluation(
     student = student_map.get(evaluation.student_profile_id) if evaluation.student_profile_id else None
     course = course_map.get(evaluation.course_id) if evaluation.course_id else None
     assignment = assignment_map.get(evaluation.assignment_id) if evaluation.assignment_id else None
+    criteria_by_id = {criterion.id: criterion for criterion in rubric.criteria} if rubric else {}
+    ratings_by_id = {
+        rating.id: rating
+        for criterion in criteria_by_id.values()
+        for rating in criterion.ratings
+    }
 
     return {
         "id": evaluation.id,
         "rubric_id": evaluation.rubric_id,
         "rubric_name": rubric.name if rubric else None,
+        "rubric_max_points": rubric.max_points if rubric else None,
         "student_profile_id": evaluation.student_profile_id,
         "student_name": f"{student.first_name} {student.last_name}".strip() if student else None,
         "course_id": evaluation.course_id,
@@ -99,12 +106,23 @@ def _serialize_evaluation(
             {
                 "id": item.id,
                 "criterion_id": item.criterion_id,
+                "criterion_title": criteria_by_id[item.criterion_id].title if item.criterion_id in criteria_by_id else None,
+                "criterion_type": criteria_by_id[item.criterion_id].criterion_type.value if item.criterion_id in criteria_by_id else None,
+                "criterion_max_points": criteria_by_id[item.criterion_id].max_points if item.criterion_id in criteria_by_id else None,
                 "rating_id": item.rating_id,
+                "rating_title": ratings_by_id[item.rating_id].title if item.rating_id in ratings_by_id else None,
+                "rating_description": ratings_by_id[item.rating_id].description if item.rating_id in ratings_by_id else None,
                 "points_awarded": item.points_awarded,
                 "is_checked": item.is_checked,
                 "narrative_comment": item.narrative_comment,
             }
-            for item in evaluation.items
+            for item in sorted(
+                evaluation.items,
+                key=lambda row: (
+                    criteria_by_id[row.criterion_id].display_order if row.criterion_id in criteria_by_id else 0,
+                    row.id,
+                ),
+            )
         ],
     }
 

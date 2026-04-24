@@ -38,6 +38,89 @@ function mockApiFetch() {
       return jsonResponse([])
     }
 
+    if (url.includes('/api/v1/documents/targets')) {
+      return jsonResponse({ students: [{ id: 42, name: 'Ada Lovelace', email: 'ada@example.edu' }] })
+    }
+
+    if (url.includes('/api/v1/rubrics/evaluations?student_profile_id=42')) {
+      return jsonResponse([
+        {
+          id: 7,
+          rubric_id: 3,
+          rubric_name: 'Research Rubric',
+          rubric_max_points: 10,
+          student_profile_id: 42,
+          course_id: 1,
+          course_name: 'Biology 101',
+          assignment_id: 9,
+          assignment_title: 'Lab Report',
+          evaluator_notes: 'Strong evidence.',
+          total_points: 8,
+          created_at: '2026-04-24T12:00:00',
+          items: [
+            {
+              id: 11,
+              criterion_id: 5,
+              criterion_title: 'Evidence',
+              criterion_type: 'points',
+              criterion_max_points: 5,
+              rating_id: 6,
+              rating_title: 'Proficient',
+              rating_description: 'Uses relevant observations.',
+              points_awarded: 4,
+              is_checked: null,
+              narrative_comment: null,
+            },
+          ],
+        },
+      ])
+    }
+
+    if (url.includes('/api/v1/students/42/profile')) {
+      return jsonResponse({
+        student: {
+          id: 42,
+          name: 'Ada Lovelace',
+          first_name: 'Ada',
+          last_name: 'Lovelace',
+          email: 'ada@example.edu',
+          phone_number: null,
+          student_number: 'S-42',
+          notes: 'Enjoys proofs.',
+          is_advisee: false,
+          advisee_id: null,
+        },
+        priority_sections: ['alerts', 'attendance_summary', 'recent_interactions', 'grade_overview'],
+        alerts: [],
+        flags_tags: [],
+        attendance_summary: { present: 1, absent: 0, tardy: 0, excused: 0, total_records: 1 },
+        courses: [
+          {
+            course_id: 1,
+            name: 'Biology 101',
+            section_name: 'A',
+            totals: { earned: 8, possible: 10, percent: 80 },
+            assignments: [
+              {
+                assignment_id: 9,
+                title: 'Lab Report',
+                source: 'local',
+                due_at: null,
+                points_possible: 10,
+                score: 8,
+                status: 'graded',
+                percent: 80,
+              },
+            ],
+          },
+        ],
+        grade_overview: [{ course_id: 1, course_name: 'Biology 101', earned: 8, possible: 10, percent: 80 }],
+        student_documents: [],
+        recent_interactions: [],
+        advising_meetings: [],
+      })
+    }
+
     if (url.includes('/api/v1/courses/1/matches/history')) {
       return jsonResponse([])
     }
@@ -94,5 +177,18 @@ describe('App smoke routes', () => {
 
     expect(await screen.findByText('Match Queue Workbench')).toBeInTheDocument()
     expect(await screen.findByText('Refresh Suggestions')).toBeInTheDocument()
+  })
+
+  it('renders collapsible student profile areas with scored assignment rubrics', async () => {
+    render(
+      <MemoryRouter initialEntries={['/students/42']}>
+        <App />
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByText('Ada Lovelace')).toBeInTheDocument()
+    expect(await screen.findByText('Scored Assignment Rubrics')).toBeInTheDocument()
+    expect((await screen.findAllByText('Lab Report')).length).toBeGreaterThan(0)
+    expect(await screen.findByText('Research Rubric - 8 / 10')).toBeInTheDocument()
   })
 })

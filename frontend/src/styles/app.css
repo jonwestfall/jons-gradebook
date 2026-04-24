@@ -210,6 +210,50 @@ h3 {
   padding: 0.45rem;
 }
 
+.profile-accordion {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0.85rem 0;
+}
+
+.profile-accordion details.card,
+.nested-accordion details.card {
+  padding: 0;
+  overflow: hidden;
+}
+
+.profile-accordion summary,
+.nested-accordion summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  cursor: pointer;
+}
+
+.profile-accordion summary strong,
+.nested-accordion summary strong {
+  min-width: 0;
+}
+
+.profile-accordion summary span,
+.nested-accordion summary span {
+  color: var(--muted);
+  font-size: 0.84rem;
+  text-align: right;
+}
+
+.profile-accordion details.card > :not(summary),
+.nested-accordion details.card > :not(summary) {
+  margin: 0.75rem;
+}
+
+.nested-accordion {
+  display: grid;
+  gap: 0.6rem;
+}
+
 .form {
   display: grid;
   gap: 0.55rem;
