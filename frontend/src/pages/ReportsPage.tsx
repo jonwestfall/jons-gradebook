@@ -43,6 +43,18 @@ type ReportPreview = {
     course_name?: string | null
     assignment_title?: string | null
     created_at: string
+    evaluator_notes?: string | null
+    items: {
+      id: number
+      criterion_title: string
+      criterion_type?: string | null
+      criterion_max_points?: number | null
+      rating_title?: string | null
+      rating_description?: string | null
+      points_awarded?: number | null
+      is_checked?: boolean | null
+      narrative_comment?: string | null
+    }[]
   }[]
   recent_interactions: { type: string; summary: string; occurred_at: string }[]
 }
@@ -275,20 +287,50 @@ export function ReportsPage() {
           </div>
 
           <h4>Recent Rubric Evaluations</h4>
-          <ul className="list compact">
+          <div className="rubric-report-stack">
             {preview.rubric_evaluations.length > 0 ? (
               preview.rubric_evaluations.slice(0, 8).map((evaluation) => (
-                <li key={evaluation.id} className="card">
-                  {evaluation.created_at.slice(0, 10)} [{evaluation.rubric_name || 'Rubric'}] {evaluation.total_points ?? 'N/A'}
-                  {evaluation.max_points !== null && evaluation.max_points !== undefined ? ` / ${evaluation.max_points}` : ''}
-                  {' - '}
-                  {evaluation.assignment_title || evaluation.course_name || 'General'}
-                </li>
+                <section key={evaluation.id} className="rubric-report-block">
+                  <header className="rubric-report-header">
+                    <div>
+                      <strong>{evaluation.rubric_name || 'Rubric'}</strong>
+                      <span>{evaluation.assignment_title || evaluation.course_name || 'General'}</span>
+                    </div>
+                    <div className="rubric-score-pill">
+                      {evaluation.total_points ?? 'N/A'}
+                      {evaluation.max_points !== null && evaluation.max_points !== undefined ? ` / ${evaluation.max_points}` : ''}
+                    </div>
+                  </header>
+                  <div className="rubric-report-meta">{evaluation.created_at.slice(0, 10)}</div>
+                  <div className="rubric-report-grid">
+                    {evaluation.items?.length > 0 ? (
+                      evaluation.items.map((item) => (
+                        <div key={item.id} className="rubric-report-row">
+                          <div>
+                            <strong>{item.criterion_title}</strong>
+                            <span>{item.criterion_type || 'criterion'}</span>
+                          </div>
+                          <div>
+                            <strong>{item.rating_title || (item.is_checked ? 'Checked' : 'No rating')}</strong>
+                            <span>{item.rating_description || item.narrative_comment || 'No additional feedback'}</span>
+                          </div>
+                          <div className="rubric-report-points">
+                            {item.points_awarded ?? 'N/A'}
+                            {item.criterion_max_points !== null && item.criterion_max_points !== undefined ? ` / ${item.criterion_max_points}` : ''}
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="rubric-report-row muted-row">No criterion-level details saved for this evaluation.</div>
+                    )}
+                  </div>
+                  {evaluation.evaluator_notes ? <p className="rubric-report-notes">{evaluation.evaluator_notes}</p> : null}
+                </section>
               ))
             ) : (
-              <li className="card">No rubric evaluations for current scope.</li>
+              <div className="card">No rubric evaluations for current scope.</div>
             )}
-          </ul>
+          </div>
         </article>
       ) : null}
 

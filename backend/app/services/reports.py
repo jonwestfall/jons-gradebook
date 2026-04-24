@@ -26,6 +26,30 @@ from app.db.models import (
 BRAND_TITLE = "Jon's Gradebook"
 
 
+def _wrap_text(text: str, max_chars: int) -> list[str]:
+    words = (text or "").split()
+    lines: list[str] = []
+    current = ""
+    for word in words:
+        next_line = f"{current} {word}".strip()
+        if len(next_line) > max_chars and current:
+            lines.append(current)
+            current = word
+        else:
+            current = next_line
+    if current:
+        lines.append(current)
+    return lines or [""]
+
+
+def _score_label(total_points: float | None, max_points: float | None) -> str:
+    if total_points is not None and max_points is not None:
+        return f"{total_points}/{max_points}"
+    if total_points is not None:
+        return str(total_points)
+    return "N/A"
+
+
 def _student_summary(
     db: Session,
     student_id: int,
@@ -106,6 +130,16 @@ def _student_summary(
         rubric.id: rubric
         for rubric in (db.scalars(select(RubricTemplate).where(RubricTemplate.id.in_(rubric_ids))).all() if rubric_ids else [])
     }
+    criterion_map = {
+        criterion.id: criterion
+        for rubric in rubric_map.values()
+        for criterion in rubric.criteria
+    }
+    rating_map = {
+        rating.id: rating
+        for criterion in criterion_map.values()
+        for rating in criterion.ratings
+    }
     course_ids = {evaluation.course_id for evaluation in rubric_evals if evaluation.course_id is not None}
     assignment_ids = {evaluation.assignment_id for evaluation in rubric_evals if evaluation.assignment_id is not None}
     course_map = {
@@ -138,6 +172,27 @@ def _student_summary(
                 "course_name": course_map.get(evaluation.course_id).name if evaluation.course_id and course_map.get(evaluation.course_id) else None,
                 "assignment_title": assignment_map.get(evaluation.assignment_id).title if evaluation.assignment_id and assignment_map.get(evaluation.assignment_id) else None,
                 "created_at": evaluation.created_at.isoformat(),
+                "evaluator_notes": evaluation.evaluator_notes,
+                "items": [
+                    {
+                        "id": item.id,
+                        "criterion_id": item.criterion_id,
+                        "criterion_title": criterion_map.get(item.criterion_id).title if criterion_map.get(item.criterion_id) else "Criterion",
+                        "criterion_type": criterion_map.get(item.criterion_id).criterion_type.value if criterion_map.get(item.criterion_id) else None,
+                        "criterion_max_points": criterion_map.get(item.criterion_id).max_points if criterion_map.get(item.criterion_id) else None,
+                        "rating_id": item.rating_id,
+                        "rating_title": rating_map.get(item.rating_id).title if item.rating_id and rating_map.get(item.rating_id) else None,
+                        "rating_description": rating_map.get(item.rating_id).description if item.rating_id and rating_map.get(item.rating_id) else None,
+                        "points_awarded": item.points_awarded,
+                        "is_checked": item.is_checked,
+                        "narrative_comment": item.narrative_comment,
+                        "display_order": criterion_map.get(item.criterion_id).display_order if criterion_map.get(item.criterion_id) else 0,
+                    }
+                    for item in sorted(
+                        evaluation.items,
+                        key=lambda row: (criterion_map.get(row.criterion_id).display_order if criterion_map.get(row.criterion_id) else 0, row.id),
+                    )
+                ],
             }
             for evaluation in rubric_evals
         ],
@@ -212,24 +267,50 @@ def _draw_pdf(report_path: Path, summary: dict) -> None:
     y -= 10
     pdf.setFont("Helvetica-Bold", 12)
     pdf.drawString(50, y, "Rubric Evaluations")
-    y -= 18
-    pdf.setFont("Helvetica", 10)
+    y -= 20
     if summary["rubric_evaluations"]:
-        for evaluation in summary["rubric_evaluations"][:12]:
-            score = (
-                f"{evaluation['total_points']}/{evaluation['max_points']}"
-                if evaluation["total_points"] is not None and evaluation["max_points"] is not None
-                else (str(evaluation["total_points"]) if evaluation["total_points"] is not None else "N/A")
-            )
-            target = evaluation["assignment_title"] or evaluation["course_name"] or "General"
-            line = f"- {evaluation['created_at'][:10]} [{evaluation['rubric_name'] or 'Rubric'}] {score} - {target}"
-            pdf.drawString(60, y, line[:110])
-            y -= 14
-            if y < 90:
+        for evaluation in summary["rubric_evaluations"][:6]:
+            if y < 150:
                 pdf.showPage()
                 y = height - 60
-                pdf.setFont("Helvetica", 10)
+            score = _score_label(evaluation["total_points"], evaluation["max_points"])
+            target = evaluation["assignment_title"] or evaluation["course_name"] or "General"
+            pdf.setFillColorRGB(0.96, 0.93, 0.86)
+            pdf.roundRect(50, y - 28, 512, 32, 6, stroke=0, fill=1)
+            pdf.setFillColorRGB(0.08, 0.21, 0.3)
+            pdf.setFont("Helvetica-Bold", 10)
+            pdf.drawString(60, y - 12, (evaluation["rubric_name"] or "Rubric")[:55])
+            pdf.setFont("Helvetica", 9)
+            pdf.drawRightString(552, y - 12, f"{score} | {evaluation['created_at'][:10]}")
+            pdf.drawString(60, y - 24, target[:82])
+            y -= 40
+            for item in evaluation.get("items", [])[:6]:
+                if y < 95:
+                    pdf.showPage()
+                    y = height - 60
+                pdf.setStrokeColorRGB(0.84, 0.78, 0.66)
+                pdf.setFillColorRGB(1, 0.99, 0.96)
+                pdf.roundRect(60, y - 42, 492, 38, 4, stroke=1, fill=1)
+                pdf.setFillColorRGB(0.12, 0.16, 0.22)
+                pdf.setFont("Helvetica-Bold", 8.5)
+                pdf.drawString(70, y - 16, (item["criterion_title"] or "Criterion")[:34])
+                pdf.setFont("Helvetica", 8.5)
+                rating = item.get("rating_title") or ("Checked" if item.get("is_checked") else "No rating")
+                pdf.drawString(230, y - 16, rating[:35])
+                points = _score_label(item.get("points_awarded"), item.get("criterion_max_points"))
+                pdf.drawRightString(540, y - 16, points)
+                detail = item.get("rating_description") or item.get("narrative_comment") or ""
+                if detail:
+                    pdf.drawString(70, y - 31, detail[:88])
+                y -= 46
+            if evaluation.get("evaluator_notes"):
+                pdf.setFont("Helvetica-Oblique", 8.5)
+                for line in _wrap_text(f"Notes: {evaluation['evaluator_notes']}", 96)[:2]:
+                    pdf.drawString(64, y - 8, line)
+                    y -= 12
+            y -= 8
     else:
+        pdf.setFont("Helvetica", 10)
         pdf.drawString(60, y, "No rubric evaluations available")
         y -= 14
 
@@ -302,16 +383,27 @@ def _draw_png(image_path: Path, summary: dict) -> None:
     draw.text((40, y), "Rubric Evaluations", fill="#1b2840", font=font_title)
     y += 26
 
-    for evaluation in summary["rubric_evaluations"][:9]:
-        score = (
-            f"{evaluation['total_points']}/{evaluation['max_points']}"
-            if evaluation["total_points"] is not None and evaluation["max_points"] is not None
-            else (str(evaluation["total_points"]) if evaluation["total_points"] is not None else "N/A")
-        )
+    for evaluation in summary["rubric_evaluations"][:4]:
+        score = _score_label(evaluation["total_points"], evaluation["max_points"])
         target = evaluation["assignment_title"] or evaluation["course_name"] or "General"
-        line = f"{evaluation['created_at'][:10]} [{evaluation['rubric_name'] or 'Rubric'}] {score} - {target}"
-        draw.text((50, y), line[:140], fill="#27314f", font=font_body)
-        y += 20
+        draw.rounded_rectangle((50, y, 1150, y + 68), radius=10, fill="#fff8eb", outline="#d5c8aa")
+        draw.text((70, y + 12), (evaluation["rubric_name"] or "Rubric")[:70], fill="#14213d", font=font_title)
+        draw.text((930, y + 12), score, fill="#14213d", font=font_body)
+        draw.text((70, y + 38), f"{evaluation['created_at'][:10]} - {target}"[:120], fill="#475569", font=font_body)
+        y += 82
+        for item in evaluation.get("items", [])[:5]:
+            if y > 1430:
+                break
+            draw.rounded_rectangle((75, y, 1125, y + 58), radius=8, fill="#ffffff", outline="#d8d1c1")
+            draw.text((95, y + 9), (item["criterion_title"] or "Criterion")[:45], fill="#1f2937", font=font_body)
+            rating = item.get("rating_title") or ("Checked" if item.get("is_checked") else "No rating")
+            draw.text((460, y + 9), rating[:44], fill="#1f2937", font=font_body)
+            points = _score_label(item.get("points_awarded"), item.get("criterion_max_points"))
+            draw.text((1010, y + 9), points, fill="#1f2937", font=font_body)
+            detail = item.get("rating_description") or item.get("narrative_comment") or ""
+            if detail:
+                draw.text((95, y + 32), detail[:125], fill="#475569", font=font_body)
+            y += 66
 
     if not summary["rubric_evaluations"]:
         draw.text((50, y), "No rubric evaluations available", fill="#27314f", font=font_body)

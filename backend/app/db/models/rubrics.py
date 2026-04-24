@@ -3,7 +3,9 @@ from __future__ import annotations
 import enum
 from typing import Optional
 
-from sqlalchemy import Boolean, Enum, Float, ForeignKey, Integer, String, Text
+from datetime import datetime
+
+from sqlalchemy import Boolean, DateTime, Enum, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.models.common import Base, TimestampMixin
@@ -22,6 +24,7 @@ class RubricTemplate(Base, TimestampMixin):
     name: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text)
     max_points: Mapped[Optional[float]] = mapped_column(Float)
+    archived_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
     criteria = relationship("RubricCriterion", back_populates="rubric", cascade="all, delete-orphan")
 

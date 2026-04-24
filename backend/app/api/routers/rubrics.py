@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db.models import (
@@ -28,13 +30,21 @@ from app.schemas.rubrics import (
 router = APIRouter(prefix="/rubrics", tags=["rubrics"])
 
 
-def _serialize_rubric(rubric: RubricTemplate) -> dict:
+def _rubric_evaluation_count(db: Session, rubric_id: int) -> int:
+    return int(db.scalar(select(func.count()).select_from(RubricEvaluation).where(RubricEvaluation.rubric_id == rubric_id)) or 0)
+
+
+def _serialize_rubric(rubric: RubricTemplate, evaluation_count: int = 0) -> dict:
     criteria = sorted(rubric.criteria, key=lambda criterion: (criterion.display_order, criterion.id))
     return {
         "id": rubric.id,
         "name": rubric.name,
         "description": rubric.description,
         "max_points": rubric.max_points,
+        "archived_at": rubric.archived_at.isoformat() if rubric.archived_at else None,
+        "is_archived": rubric.archived_at is not None,
+        "evaluation_count": evaluation_count,
+        "can_delete": evaluation_count == 0,
         "criteria": [
             {
                 "id": criterion.id,
@@ -205,9 +215,24 @@ def get_rubric_evaluation(evaluation_id: int, db: Session = Depends(get_db)) -> 
 
 
 @router.get("/")
-def list_rubrics(db: Session = Depends(get_db)) -> list[dict]:
-    rubrics = db.scalars(select(RubricTemplate).order_by(RubricTemplate.name.asc())).all()
-    return [_serialize_rubric(rubric) for rubric in rubrics]
+def list_rubrics(
+    archive_state: str = Query(default="active", pattern="^(active|archived|all)$"),
+    db: Session = Depends(get_db),
+) -> list[dict]:
+    query = select(RubricTemplate)
+    if archive_state == "active":
+        query = query.where(RubricTemplate.archived_at.is_(None))
+    elif archive_state == "archived":
+        query = query.where(RubricTemplate.archived_at.is_not(None))
+
+    rubrics = db.scalars(query.order_by(RubricTemplate.name.asc())).all()
+    evaluation_counts = {
+        rubric_id: int(count)
+        for rubric_id, count in db.execute(
+            select(RubricEvaluation.rubric_id, func.count(RubricEvaluation.id)).group_by(RubricEvaluation.rubric_id)
+        ).all()
+    }
+    return [_serialize_rubric(rubric, evaluation_counts.get(rubric.id, 0)) for rubric in rubrics]
 
 
 @router.get("/{rubric_id}")
@@ -215,7 +240,7 @@ def get_rubric(rubric_id: int, db: Session = Depends(get_db)) -> dict:
     rubric = db.get(RubricTemplate, rubric_id)
     if not rubric:
         raise HTTPException(status_code=404, detail="Rubric not found")
-    return _serialize_rubric(rubric)
+    return _serialize_rubric(rubric, _rubric_evaluation_count(db, rubric.id))
 
 
 @router.post("/")
@@ -224,7 +249,7 @@ def create_rubric(payload: RubricTemplateCreate, db: Session = Depends(get_db)) 
     db.add(rubric)
     db.commit()
     db.refresh(rubric)
-    return _serialize_rubric(rubric)
+    return _serialize_rubric(rubric, 0)
 
 
 @router.patch("/{rubric_id}")
@@ -239,7 +264,7 @@ def update_rubric(rubric_id: int, payload: RubricTemplateUpdate, db: Session = D
 
     db.commit()
     db.refresh(rubric)
-    return _serialize_rubric(rubric)
+    return _serialize_rubric(rubric, _rubric_evaluation_count(db, rubric.id))
 
 
 @router.delete("/{rubric_id}")
@@ -247,9 +272,34 @@ def delete_rubric(rubric_id: int, db: Session = Depends(get_db)) -> dict:
     rubric = db.get(RubricTemplate, rubric_id)
     if not rubric:
         raise HTTPException(status_code=404, detail="Rubric not found")
+    evaluation_count = _rubric_evaluation_count(db, rubric_id)
+    if evaluation_count > 0:
+        raise HTTPException(status_code=409, detail="Rubric has student evaluations and must be archived instead of deleted")
     db.delete(rubric)
     db.commit()
     return {"deleted": True, "rubric_id": rubric_id}
+
+
+@router.post("/{rubric_id}/archive")
+def archive_rubric(rubric_id: int, db: Session = Depends(get_db)) -> dict:
+    rubric = db.get(RubricTemplate, rubric_id)
+    if not rubric:
+        raise HTTPException(status_code=404, detail="Rubric not found")
+    rubric.archived_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(rubric)
+    return _serialize_rubric(rubric, _rubric_evaluation_count(db, rubric.id))
+
+
+@router.post("/{rubric_id}/restore")
+def restore_rubric(rubric_id: int, db: Session = Depends(get_db)) -> dict:
+    rubric = db.get(RubricTemplate, rubric_id)
+    if not rubric:
+        raise HTTPException(status_code=404, detail="Rubric not found")
+    rubric.archived_at = None
+    db.commit()
+    db.refresh(rubric)
+    return _serialize_rubric(rubric, _rubric_evaluation_count(db, rubric.id))
 
 
 @router.post("/{rubric_id}/criteria")
@@ -267,7 +317,7 @@ def add_rubric_criterion(rubric_id: int, payload: RubricCriterionCreate, db: Ses
     db.add(criterion)
     db.commit()
     db.refresh(rubric)
-    return _serialize_rubric(rubric)
+    return _serialize_rubric(rubric, _rubric_evaluation_count(db, rubric.id) if rubric else 0)
 
 
 @router.patch("/{rubric_id}/criteria/{criterion_id}")
@@ -287,7 +337,7 @@ def update_rubric_criterion(
 
     db.commit()
     rubric = db.get(RubricTemplate, rubric_id)
-    return _serialize_rubric(rubric)
+    return _serialize_rubric(rubric, _rubric_evaluation_count(db, rubric.id) if rubric else 0)
 
 
 @router.delete("/{rubric_id}/criteria/{criterion_id}")
@@ -298,7 +348,7 @@ def delete_rubric_criterion(rubric_id: int, criterion_id: int, db: Session = Dep
     db.delete(criterion)
     db.commit()
     rubric = db.get(RubricTemplate, rubric_id)
-    return _serialize_rubric(rubric)
+    return _serialize_rubric(rubric, _rubric_evaluation_count(db, rubric.id) if rubric else 0)
 
 
 @router.post("/{rubric_id}/criteria/{criterion_id}/ratings")
@@ -325,7 +375,7 @@ def add_rubric_rating(
     db.add(rating)
     db.commit()
     rubric = db.get(RubricTemplate, rubric_id)
-    return _serialize_rubric(rubric)
+    return _serialize_rubric(rubric, _rubric_evaluation_count(db, rubric.id) if rubric else 0)
 
 
 @router.patch("/{rubric_id}/criteria/{criterion_id}/ratings/{rating_id}")
@@ -350,7 +400,7 @@ def update_rubric_rating(
 
     db.commit()
     rubric = db.get(RubricTemplate, rubric_id)
-    return _serialize_rubric(rubric)
+    return _serialize_rubric(rubric, _rubric_evaluation_count(db, rubric.id) if rubric else 0)
 
 
 @router.delete("/{rubric_id}/criteria/{criterion_id}/ratings/{rating_id}")
@@ -366,7 +416,7 @@ def delete_rubric_rating(rubric_id: int, criterion_id: int, rating_id: int, db: 
     db.delete(rating)
     db.commit()
     rubric = db.get(RubricTemplate, rubric_id)
-    return _serialize_rubric(rubric)
+    return _serialize_rubric(rubric, _rubric_evaluation_count(db, rubric.id) if rubric else 0)
 
 
 @router.post("/evaluations")
@@ -374,6 +424,8 @@ def create_rubric_evaluation(payload: RubricEvaluationCreate, db: Session = Depe
     rubric = db.get(RubricTemplate, payload.rubric_id)
     if not rubric:
         raise HTTPException(status_code=404, detail="Rubric not found")
+    if rubric.archived_at is not None:
+        raise HTTPException(status_code=400, detail="Archived rubrics must be restored before scoring")
 
     criteria_by_id = {criterion.id: criterion for criterion in rubric.criteria}
 

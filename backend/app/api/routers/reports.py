@@ -43,7 +43,9 @@ def _download_urls(student_id: int, pdf_path: str, png_path: str) -> dict[str, s
 @router.get("/targets")
 def list_report_targets(db: Session = Depends(get_db)) -> dict:
     students = db.scalars(select(StudentProfile).order_by(StudentProfile.last_name.asc(), StudentProfile.first_name.asc())).all()
-    rubrics = db.scalars(select(RubricTemplate).order_by(RubricTemplate.name.asc())).all()
+    rubrics = db.scalars(
+        select(RubricTemplate).where(RubricTemplate.archived_at.is_(None)).order_by(RubricTemplate.name.asc())
+    ).all()
     assignments = db.scalars(select(Assignment).order_by(Assignment.title.asc())).all()
 
     return {
