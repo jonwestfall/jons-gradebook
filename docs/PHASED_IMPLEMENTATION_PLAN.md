@@ -81,6 +81,7 @@ This plan tracks what is shipped, what is in-flight, and what is next for Jon's 
 
 ## Phase 3: Analytics + Messaging Expansion
 
+- Student report template builder with editable sections, theme/logo branding, preview, PDF/PNG export, report history, and generated artifact links into Documents
 - Cross-course risk and trend analytics dashboards
 - Outreach template library enhancements with richer defaults
 - Cohort-level progress and completion trend views

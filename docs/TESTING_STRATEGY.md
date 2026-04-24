@@ -100,7 +100,7 @@ alembic upgrade head
 - intervention rules
 - advising meeting conversion
 - message follow-up options
-4. Report generation and document preview integrity
+4. Report template editing, PDF/PNG generation, generated artifact links in Documents/Profile, and document preview integrity
 5. Sync event pagination/filtering and no-crash UI behavior
 
 ## Release Validation Recommendation

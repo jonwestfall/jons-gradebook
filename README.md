@@ -78,7 +78,7 @@ npm run dev
 
 - Encrypted document storage with extracted text and versioning
 - Document quick preview (inline PDF + extracted text side panel)
-- PDF/PNG report generation with branding templates
+- Templatized PDF/PNG student report builder with live preview, theme/logo controls, report history, and generated artifacts linked into Documents/Student Profile
 
 ### Platform + safety
 

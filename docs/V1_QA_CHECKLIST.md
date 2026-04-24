@@ -130,28 +130,35 @@ Use this checklist to validate V1 end-to-end before release or major merge.
 - [ ] Student can be marked as advisee from profile.
 - [ ] Attendance statuses (Present/Absent/Tardy/Excused) can be recorded.
 
-## 6) Backup + Restore
+## 6) Reports + Documents
 
-### 6.1 Backup
+- [ ] Reports page loads default student report templates.
+- [ ] Report template section toggles and ordering update the live preview.
+- [ ] Single-student report generation creates PDF and PNG links.
+- [ ] Generated report artifacts appear as `Report` documents for the student.
+
+## 7) Backup + Restore
+
+### 7.1 Backup
 - [ ] Manual backup creation succeeds.
 - [ ] Backup artifact appears in Settings/backup list.
 
-### 6.2 Restore Safety
+### 7.2 Restore Safety
 - [ ] Restore preflight shows comparison summary.
 - [ ] Typed confirmation gate (`RESTORE`) is required.
 
-### 6.3 Restore Execution (when implemented)
+### 7.3 Restore Execution (when implemented)
 - [ ] Full restore from one artifact completes.
 - [ ] System state (DB + files + settings/templates) reflects artifact.
 
-## 7) Security + Data Handling (V1 Scope)
+## 8) Security + Data Handling (V1 Scope)
 
 - [ ] Sensitive field encryption path works (no plaintext leak in API payloads where not intended).
 - [ ] File uploads are stored encrypted at rest.
 - [ ] De-identification preview required before LLM send.
 - [ ] De-identified prompts and mapping exports/audit views are accessible.
 
-## 8) Final Regression Sweep
+## 9) Final Regression Sweep
 
 - [ ] API smoke: core endpoints return expected status codes.
 - [ ] Migrations from clean DB to head succeed.

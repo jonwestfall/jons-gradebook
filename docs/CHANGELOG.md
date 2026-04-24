@@ -22,6 +22,12 @@ If work is not committed yet, use `commit WORKTREE` temporarily and replace it a
 
 ---
 
+## 2026-04-24
+- [commit WORKTREE] [area: backend] Added report template, template asset, and report run persistence with migration `20260424_0015`.
+- [commit WORKTREE] [area: backend] Refactored student report generation to use editable template config, theme/logo rendering, and generated PDF/PNG document linking.
+- [commit WORKTREE] [area: frontend] Rebuilt `/reports` as a structured report template builder with live preview, section controls, branding controls, export actions, and report history.
+- [commit WORKTREE] [area: docs/testing] Updated README, roadmap, testing strategy, QA checklist, and smoke coverage for templated reports.
+
 ## 2026-04-23
 - [commit WORKTREE] [area: backend] Added new dashboard router and summary endpoint for action-first triage cards and top-risk students.
 - [commit WORKTREE] [area: backend] Added task model, schemas, migration, and task API (`list/create/update/delete/targets/rules-run`).
