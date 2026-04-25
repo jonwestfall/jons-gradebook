@@ -86,12 +86,14 @@ This plan tracks what is shipped, what is in-flight, and what is next for Jon's 
 - Frontend smoke tests and build gate
 
 ### Remaining V2 scope
-- Sync conflict UX and snapshot diff viewer polish
-- Stronger per-workflow regression coverage (beyond smoke)
-- Operator runbooks for restore execution and recovery drills
-- UX polish pass for sticky control rows across all dense pages
+- Expand automated backend and workflow tests beyond the initial pytest/Vitest closeout coverage.
+- Run and record a restore drill using `docs/RESTORE_RUNBOOK.md`.
+- Continue UX polish on dense pages after real professor walkthroughs.
 
 ## Phase 3: Analytics + Messaging Expansion
+
+- Workflow benchmark instrumentation for match resolution and at-risk follow-up is now available through task benchmark events.
+- Case/task board foundations now include board view, bulk priority/date/outcome edits, and intervention outcome tags.
 
 - Cross-course risk and trend analytics dashboards
 - Outreach template library enhancements with richer defaults

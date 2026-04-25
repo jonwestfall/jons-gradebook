@@ -1168,6 +1168,51 @@ button:hover {
   vertical-align: middle;
 }
 
+.table-scroll {
+  overflow: auto;
+  max-height: 420px;
+}
+
+.responsive-table {
+  border-collapse: collapse;
+  min-width: 860px;
+  width: 100%;
+}
+
+.responsive-table th,
+.responsive-table td {
+  border-top: 1px solid var(--line);
+  padding: 0.45rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.responsive-table thead th {
+  background: var(--surface);
+  border-top: 0;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.task-board {
+  display: grid;
+  gap: 0.8rem;
+  grid-template-columns: repeat(4, minmax(190px, 1fr));
+  margin-top: 0.8rem;
+}
+
+.task-board-column {
+  align-content: start;
+  display: grid;
+  gap: 0.6rem;
+  min-height: 260px;
+}
+
+.task-card {
+  margin: 0;
+}
+
 .students-grid-table thead th {
   background: #fff5df;
   border-top: 0;
@@ -1522,6 +1567,14 @@ pre {
 
   .students-grid-table {
     min-width: 620px;
+  }
+
+  .task-board {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .responsive-table {
+    min-width: 700px;
   }
 
   .students-grid-table.prioritize-mobile th:nth-child(n + 6),

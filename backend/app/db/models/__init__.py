@@ -33,6 +33,8 @@ from app.db.models.canvas import (
     CanvasCourseSelection,
     CanvasCourseSnapshot,
     CanvasEnrollmentSnapshot,
+    CanvasSyncConflict,
+    CanvasSyncConflictStatus,
     CanvasSyncEvent,
     CanvasSyncEntityType,
     CanvasSyncEventAction,
@@ -55,7 +57,7 @@ from app.db.models.llm import (
     LLMWorkbenchJobStatus,
 )
 from app.db.models.settings import AppOption
-from app.db.models.tasks import Task, TaskPriority, TaskStatus
+from app.db.models.tasks import Task, TaskPriority, TaskStatus, WorkflowBenchmarkEvent
 from app.db.models.reports import ReportRun, ReportTemplate, ReportTemplateAsset
 from app.db.models.rubrics import (
     RubricCriterion,
@@ -108,6 +110,8 @@ __all__ = [
     "CanvasAssignmentSnapshot",
     "CanvasEnrollmentSnapshot",
     "CanvasSubmissionSnapshot",
+    "CanvasSyncConflict",
+    "CanvasSyncConflictStatus",
     "CanvasSyncEvent",
     "CanvasSyncEntityType",
     "CanvasSyncEventAction",
@@ -145,6 +149,7 @@ __all__ = [
     "Task",
     "TaskStatus",
     "TaskPriority",
+    "WorkflowBenchmarkEvent",
     "ReportTemplate",
     "ReportTemplateAsset",
     "ReportRun",

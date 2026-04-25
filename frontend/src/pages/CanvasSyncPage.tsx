@@ -81,6 +81,35 @@ type SyncRunDetail = {
   recent_events: SyncEvent[]
 }
 
+type SyncConflict = {
+  id: number
+  sync_run_id: number
+  course_name?: string | null
+  assignment_title?: string | null
+  student_name?: string | null
+  local: { score?: number | null; status?: string | null; source?: string | null }
+  canvas: { score?: number | null; status?: string | null }
+  status: 'pending' | 'kept_local' | 'accepted_canvas' | 'ignored'
+  rationale?: string | null
+  resolved_at?: string | null
+  created_at: string
+}
+
+type SyncDiffRow = {
+  identity: string
+  change_type: 'created' | 'updated' | 'unchanged'
+  changed_fields: string[]
+  before: Record<string, unknown> | null
+  after: Record<string, unknown> | null
+}
+
+type SyncDiff = {
+  run_id: number
+  previous_run_id?: number | null
+  entity_type: string
+  rows: SyncDiffRow[]
+}
+
 function formatDate(value?: string | null): string {
   if (!value) return 'N/A'
   return new Date(value).toLocaleDateString()
@@ -96,6 +125,11 @@ export function CanvasSyncPage() {
   const [previewCourseId, setPreviewCourseId] = useState<string>('')
   const [selectedRunId, setSelectedRunId] = useState<number | null>(null)
   const [selectedRunDetail, setSelectedRunDetail] = useState<SyncRunDetail | null>(null)
+  const [runConflicts, setRunConflicts] = useState<SyncConflict[]>([])
+  const [runDiff, setRunDiff] = useState<SyncDiff | null>(null)
+  const [diffEntity, setDiffEntity] = useState<'course' | 'assignment' | 'enrollment' | 'submission'>('submission')
+  const [resolutionNotes, setResolutionNotes] = useState<Record<number, string>>({})
+  const [resolvingConflictId, setResolvingConflictId] = useState<number | null>(null)
   const [runEvents, setRunEvents] = useState<SyncEvent[]>([])
   const [runEventsTotal, setRunEventsTotal] = useState(0)
   const [runEventsOffset, setRunEventsOffset] = useState(0)
@@ -171,6 +205,16 @@ export function CanvasSyncPage() {
     setRunEvents(page.events)
     setRunEventsTotal(page.total)
     setRunEventsOffset(page.offset)
+  }
+
+  async function loadRunConflicts(runId: number) {
+    const conflicts = await api.get<SyncConflict[]>(`/canvas/sync/runs/${runId}/conflicts`)
+    setRunConflicts(conflicts)
+  }
+
+  async function loadRunDiff(runId: number, entity: typeof diffEntity = diffEntity) {
+    const diff = await api.get<SyncDiff>(`/canvas/sync/runs/${runId}/diff?entity_type=${entity}&changed_only=true`)
+    setRunDiff(diff)
   }
 
   async function loadStudentMapping() {
@@ -323,6 +367,12 @@ export function CanvasSyncPage() {
     void loadRunDetail(selectedRunId, 0)
   }, [selectedRunId, eventActionFilter, eventEntityFilter])
 
+  useEffect(() => {
+    if (!selectedRunId) return
+    void loadRunConflicts(selectedRunId)
+    void loadRunDiff(selectedRunId, diffEntity)
+  }, [selectedRunId, diffEntity])
+
   function summarizeEventDetail(event: SyncEvent): string {
     const detail = event.detail || {}
     if (event.entity_type === 'assignment') {
@@ -348,6 +398,31 @@ export function CanvasSyncPage() {
       if (name) return name
     }
     return JSON.stringify(detail)
+  }
+
+  async function resolveConflict(conflict: SyncConflict, status: 'kept_local' | 'accepted_canvas' | 'ignored') {
+    setResolvingConflictId(conflict.id)
+    setError(null)
+    try {
+      await api.post(`/canvas/sync/conflicts/${conflict.id}/resolve`, {
+        status,
+        rationale: resolutionNotes[conflict.id] || null,
+      })
+      if (selectedRunId) {
+        await loadRunConflicts(selectedRunId)
+        await loadRunDetail(selectedRunId, runEventsOffset)
+      }
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setResolvingConflictId(null)
+    }
+  }
+
+  function formatDiffValue(value: unknown): string {
+    if (value === null || value === undefined || value === '') return '—'
+    if (typeof value === 'object') return JSON.stringify(value)
+    return String(value)
   }
 
   return (
@@ -681,6 +756,144 @@ export function CanvasSyncPage() {
                     </td>
                   </tr>
                 ))}
+              </tbody>
+            </table>
+          </div>
+        </article>
+      ) : null}
+
+      {selectedRunDetail ? (
+        <article className="card">
+          <h3>Conflict Resolution</h3>
+          <p>
+            Local overrides remain protected during sync. Pending conflicts show where Canvas had a new value that was
+            not applied automatically.
+          </p>
+          {runConflicts.length === 0 ? <p>No local override conflicts were captured for this run.</p> : null}
+          <div className="list">
+            {runConflicts.map((conflict) => (
+              <div key={conflict.id} className="card">
+                <strong>{conflict.student_name || 'Unknown student'}</strong>
+                <div>{conflict.assignment_title || 'Unknown assignment'}</div>
+                <div className="gradebook-toolbar compact-grid">
+                  <div>
+                    <strong>Local</strong>
+                    <div>Score: {formatDiffValue(conflict.local.score)}</div>
+                    <div>Status: {formatDiffValue(conflict.local.status)}</div>
+                    <div>Source: {formatDiffValue(conflict.local.source)}</div>
+                  </div>
+                  <div>
+                    <strong>Canvas</strong>
+                    <div>Score: {formatDiffValue(conflict.canvas.score)}</div>
+                    <div>Status: {formatDiffValue(conflict.canvas.status)}</div>
+                  </div>
+                  <div>
+                    <strong>Status</strong>
+                    <div>{conflict.status}</div>
+                    {conflict.rationale ? <div>Rationale: {conflict.rationale}</div> : null}
+                  </div>
+                </div>
+                {conflict.status === 'pending' ? (
+                  <>
+                    <textarea
+                      value={resolutionNotes[conflict.id] || ''}
+                      onChange={(event) =>
+                        setResolutionNotes((prev) => ({ ...prev, [conflict.id]: event.target.value }))
+                      }
+                      placeholder="Resolution rationale"
+                    />
+                    <button
+                      onClick={() => void resolveConflict(conflict, 'kept_local')}
+                      disabled={resolvingConflictId === conflict.id}
+                    >
+                      Keep Local Override
+                    </button>{' '}
+                    <button
+                      onClick={() => void resolveConflict(conflict, 'accepted_canvas')}
+                      disabled={resolvingConflictId === conflict.id}
+                    >
+                      Accept Canvas Value
+                    </button>{' '}
+                    <button
+                      onClick={() => void resolveConflict(conflict, 'ignored')}
+                      disabled={resolvingConflictId === conflict.id}
+                    >
+                      Ignore
+                    </button>
+                  </>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        </article>
+      ) : null}
+
+      {selectedRunDetail ? (
+        <article className="card">
+          <h3>Snapshot Diff Viewer</h3>
+          <div className="form">
+            <label>
+              Snapshot Type
+              <select
+                value={diffEntity}
+                onChange={(event) =>
+                  setDiffEntity(event.target.value as 'course' | 'assignment' | 'enrollment' | 'submission')
+                }
+              >
+                <option value="submission">Submissions</option>
+                <option value="assignment">Assignments</option>
+                <option value="enrollment">Enrollments</option>
+                <option value="course">Courses</option>
+              </select>
+            </label>
+            <button onClick={() => selectedRunId && void loadRunDiff(selectedRunId, diffEntity)}>Refresh Diff</button>
+          </div>
+          <p>
+            Comparing run #{runDiff?.run_id || selectedRunDetail.id}
+            {runDiff?.previous_run_id ? ` to prior run #${runDiff.previous_run_id}` : ' with no prior run available'}.
+          </p>
+          <div className="card table-scroll">
+            <table className="responsive-table">
+              <thead>
+                <tr>
+                  <th>Item</th>
+                  <th>Change</th>
+                  <th>Changed Fields</th>
+                  <th>Before</th>
+                  <th>After</th>
+                </tr>
+              </thead>
+              <tbody>
+                {runDiff?.rows.map((row) => (
+                  <tr key={row.identity}>
+                    <td>{row.identity}</td>
+                    <td>{row.change_type}</td>
+                    <td>{row.changed_fields.length ? row.changed_fields.join(', ') : '—'}</td>
+                    <td>
+                      {row.before
+                        ? row.changed_fields.map((field) => (
+                            <div key={`${row.identity}-before-${field}`}>
+                              {field}: {formatDiffValue(row.before?.[field])}
+                            </div>
+                          ))
+                        : '—'}
+                    </td>
+                    <td>
+                      {row.after
+                        ? (row.changed_fields.length ? row.changed_fields : Object.keys(row.after)).map((field) => (
+                            <div key={`${row.identity}-after-${field}`}>
+                              {field}: {formatDiffValue(row.after?.[field])}
+                            </div>
+                          ))
+                        : '—'}
+                    </td>
+                  </tr>
+                ))}
+                {runDiff && runDiff.rows.length === 0 ? (
+                  <tr>
+                    <td colSpan={5}>No changed snapshot rows for this type.</td>
+                  </tr>
+                ) : null}
               </tbody>
             </table>
           </div>

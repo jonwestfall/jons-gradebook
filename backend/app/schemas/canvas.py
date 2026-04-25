@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 
-from app.db.models import SyncTrigger
+from app.db.models import CanvasSyncConflictStatus, SyncTrigger
 
 
 class CanvasSyncRequest(BaseModel):
@@ -17,3 +17,8 @@ class CanvasCourseSelectionUpdateRequest(BaseModel):
 class CanvasStudentFieldMappingUpdateRequest(BaseModel):
     target_field: str
     source_paths: list[str]
+
+
+class CanvasSyncConflictResolutionRequest(BaseModel):
+    status: CanvasSyncConflictStatus
+    rationale: str | None = None

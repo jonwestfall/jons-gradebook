@@ -20,6 +20,9 @@ class LLMInstructionTemplateCreate(BaseModel):
     instructions: str = Field(min_length=1)
     output_guidance: str | None = None
     rubric_guidance: str | None = None
+    approval_status: str = "draft"
+    approval_note: str | None = None
+    policy_pack: str | None = None
     is_active: bool = True
     is_default: bool = False
 
@@ -31,6 +34,10 @@ class LLMInstructionTemplateUpdate(BaseModel):
     instructions: str | None = Field(default=None, min_length=1)
     output_guidance: str | None = None
     rubric_guidance: str | None = None
+    version: int | None = None
+    approval_status: str | None = None
+    approval_note: str | None = None
+    policy_pack: str | None = None
     is_active: bool | None = None
     is_default: bool | None = None
     archived: bool | None = None

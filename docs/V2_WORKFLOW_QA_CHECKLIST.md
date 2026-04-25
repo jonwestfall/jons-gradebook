@@ -33,6 +33,11 @@ Use this checklist to validate the V2 action-first workflows for a professor-fac
 - [ ] Due date update persists after refresh.
 - [ ] Delete task removes row.
 - [ ] URL filters (`status`, `student_id`, `course_id`, `search`) apply correctly.
+- [ ] Board view groups tasks by status.
+- [ ] Bulk priority changes apply to selected tasks.
+- [ ] Bulk due-date shifts apply to selected tasks.
+- [ ] Outcome tags persist after refresh and support intervention reporting.
+- [ ] At-risk follow-up benchmark events are recorded after rule runs and task completion.
 
 ## 4) Match Queue Workbench
 
@@ -44,6 +49,16 @@ Use this checklist to validate the V2 action-first workflows for a professor-fac
 - [ ] Bulk confirm updates selected suggestions.
 - [ ] Bulk reject updates selected suggestions.
 - [ ] Decision history panel reflects actions.
+- [ ] Match resolution benchmark events are recorded after single and bulk decisions.
+
+## 4.1) Canvas Conflict + Snapshot Diff
+
+- [ ] Sync run diff viewer loads submission, assignment, enrollment, and course changes.
+- [ ] Local override conflicts appear when Canvas has an incoming value that was retained.
+- [ ] `Keep Local Override` resolves a conflict with rationale.
+- [ ] `Accept Canvas Value` updates the local grade, records grade audit, and resolves the conflict.
+- [ ] `Ignore` resolves a conflict without changing the grade.
+- [ ] Resolved conflict rationale remains visible in the conflict UI.
 
 ## 5) Gradebook Messaging + Audit/Undo
 
@@ -115,6 +130,19 @@ Use this checklist to validate the V2 action-first workflows for a professor-fac
 
 - [ ] `npm run test` passes.
 - [ ] `npm run build` passes.
+
+## 11.1) Backend Validation
+
+- [ ] `pytest` passes from `backend/`.
+- [ ] `python3 -m compileall backend/app` passes.
+- [ ] Latest migration (`20260425_0017`) applies cleanly.
+
+## 11.2) Restore Drill
+
+- [ ] `docs/RESTORE_RUNBOOK.md` is followed in a disposable environment.
+- [ ] Preflight evidence is captured.
+- [ ] Restore execution completes.
+- [ ] Post-restore route/document/report/LLM validation is recorded.
 
 ## 12) Professor Walkthrough Readiness
 

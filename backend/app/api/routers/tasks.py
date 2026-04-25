@@ -6,9 +6,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import asc, desc, or_, select
 from sqlalchemy.orm import Session
 
-from app.db.models import AppOption, Course, StudentProfile, Task, TaskPriority, TaskStatus
+from app.db.models import AppOption, Course, StudentProfile, Task, TaskPriority, TaskStatus, WorkflowBenchmarkEvent
 from app.db.session import get_db
-from app.schemas.tasks import TaskCreate, TaskOut, TaskUpdate
+from app.schemas.tasks import TaskBulkUpdate, TaskCreate, TaskOut, TaskUpdate, WorkflowBenchmarkCreate
 from app.services.risk import compute_risk_for_students, should_trigger_intervention
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
@@ -91,6 +91,80 @@ def run_intervention_rules(db: Session = Depends(get_db)) -> dict:
     return {"created_count": created, "skipped_count": skipped, "evaluated_students": len(risk_rows)}
 
 
+@router.post("/bulk")
+def bulk_update_tasks(payload: TaskBulkUpdate, db: Session = Depends(get_db)) -> dict:
+    unique_ids = sorted(set(payload.task_ids))
+    if not unique_ids:
+        raise HTTPException(status_code=400, detail="No task IDs supplied")
+
+    tasks = db.scalars(select(Task).where(Task.id.in_(unique_ids))).all()
+    found_ids = {task.id for task in tasks}
+    missing_ids = [task_id for task_id in unique_ids if task_id not in found_ids]
+
+    for task in tasks:
+        if payload.status is not None:
+            task.status = payload.status
+        if payload.priority is not None:
+            task.priority = payload.priority
+        if payload.due_at is not None:
+            task.due_at = payload.due_at
+        elif payload.due_shift_days is not None and task.due_at is not None:
+            task.due_at = task.due_at + timedelta(days=payload.due_shift_days)
+        if payload.outcome_tag is not None:
+            task.outcome_tag = payload.outcome_tag.strip() or None
+        if payload.outcome_note is not None:
+            task.outcome_note = payload.outcome_note.strip() or None
+
+    db.commit()
+    return {"updated_count": len(tasks), "missing_ids": missing_ids}
+
+
+@router.post("/benchmarks")
+def record_workflow_benchmark(payload: WorkflowBenchmarkCreate, db: Session = Depends(get_db)) -> dict:
+    event = WorkflowBenchmarkEvent(
+        workflow=payload.workflow.strip(),
+        action=payload.action.strip(),
+        duration_ms=payload.duration_ms,
+        context_json=payload.context_json,
+        completed_at=datetime.now(timezone.utc),
+    )
+    db.add(event)
+    db.commit()
+    db.refresh(event)
+    return {
+        "id": event.id,
+        "workflow": event.workflow,
+        "action": event.action,
+        "duration_ms": event.duration_ms,
+        "context_json": event.context_json,
+        "completed_at": event.completed_at.isoformat(),
+    }
+
+
+@router.get("/benchmarks/summary")
+def workflow_benchmark_summary(db: Session = Depends(get_db)) -> dict:
+    rows = db.scalars(select(WorkflowBenchmarkEvent).order_by(WorkflowBenchmarkEvent.completed_at.desc()).limit(500)).all()
+    by_workflow: dict[str, list[WorkflowBenchmarkEvent]] = {}
+    for row in rows:
+        by_workflow.setdefault(row.workflow, []).append(row)
+
+    summary = []
+    for workflow, events in sorted(by_workflow.items()):
+        durations = [event.duration_ms for event in events if event.duration_ms is not None]
+        average_duration = round(sum(durations) / len(durations)) if durations else None
+        latest = events[0]
+        summary.append(
+            {
+                "workflow": workflow,
+                "event_count": len(events),
+                "average_duration_ms": average_duration,
+                "latest_action": latest.action,
+                "latest_completed_at": latest.completed_at.isoformat(),
+            }
+        )
+    return {"workflows": summary}
+
+
 @router.get("/")
 def list_tasks(
     status: str | None = Query(default=None),
@@ -158,6 +232,8 @@ def create_task(payload: TaskCreate, db: Session = Depends(get_db)) -> Task:
         linked_interaction_id=payload.linked_interaction_id,
         linked_advising_meeting_id=payload.linked_advising_meeting_id,
         source=(payload.source or "manual").strip() or "manual",
+        outcome_tag=(payload.outcome_tag or "").strip() or None,
+        outcome_note=(payload.outcome_note or "").strip() or None,
     )
     db.add(task)
     db.commit()
@@ -210,6 +286,8 @@ def _task_payload(task: Task) -> dict:
         "linked_interaction_id": task.linked_interaction_id,
         "linked_advising_meeting_id": task.linked_advising_meeting_id,
         "source": task.source,
+        "outcome_tag": task.outcome_tag,
+        "outcome_note": task.outcome_note,
         "created_at": task.created_at.isoformat(),
         "updated_at": task.updated_at.isoformat(),
     }

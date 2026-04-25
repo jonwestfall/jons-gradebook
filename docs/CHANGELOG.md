@@ -22,6 +22,12 @@ If work is not committed yet, use `commit WORKTREE` temporarily and replace it a
 
 ---
 
+## 2026-04-25
+- [commit WORKTREE] [area: canvas-sync] Added Canvas local-override conflict capture, conflict resolution endpoints, and sync-run snapshot diff API/UI.
+- [commit WORKTREE] [area: tasks] Added task board view, bulk priority/due-date/outcome updates, outcome tags, and workflow benchmark event capture.
+- [commit WORKTREE] [area: llm] Added instruction template governance fields for version, approval status, approval notes, and policy packs.
+- [commit WORKTREE] [area: docs/testing] Added restore execution runbook and expanded V2 QA/testing docs for conflict, benchmark, backend, and restore-drill validation.
+
 ## 2026-04-24
 - [commit WORKTREE] [area: docs] Rewrote README as a professor-facing introduction covering core functions, hosted-LMS companion benefits, safety boundaries, setup, walkthrough, and validation guidance.
 - [commit WORKTREE] [area: docs/testing] Updated roadmap, backlog, testing strategy, and QA checklists to reflect the current Reports and LLM Workbench workflows and new-user evaluation path.

@@ -14,6 +14,7 @@ from app.db.models import (
     CanvasCourseSnapshot,
     CanvasEnrollmentSnapshot,
     CanvasSubmissionSnapshot,
+    CanvasSyncConflict,
     CanvasSyncEvent,
     CanvasSyncEventAction,
     CanvasSyncEntityType,
@@ -439,17 +440,17 @@ def run_canvas_sync(
                     missing = bool(submission_payload.get("missing", False))
                     excused = bool(submission_payload.get("excused", False))
 
-                    db.add(
-                        CanvasSubmissionSnapshot(
-                            sync_run_id=run.id,
-                            canvas_course_id=canvas_course_id,
-                            canvas_assignment_id=canvas_assignment_id,
-                            canvas_user_id=canvas_user_id,
-                            score=score,
-                            submitted_at=_parse_datetime(submission_payload.get("submitted_at")),
-                            payload=submission_payload,
-                        )
+                    submission_snapshot = CanvasSubmissionSnapshot(
+                        sync_run_id=run.id,
+                        canvas_course_id=canvas_course_id,
+                        canvas_assignment_id=canvas_assignment_id,
+                        canvas_user_id=canvas_user_id,
+                        score=score,
+                        submitted_at=_parse_datetime(submission_payload.get("submitted_at")),
+                        payload=submission_payload,
                     )
+                    db.add(submission_snapshot)
+                    db.flush()
 
                     status = GradeStatus.graded
                     if excused:
@@ -481,6 +482,24 @@ def run_canvas_sync(
                         submission_action = CanvasSyncEventAction.created
                     else:
                         if grade.source in {GradeSource.local, GradeSource.manual_override}:
+                            conflict = CanvasSyncConflict(
+                                sync_run_id=run.id,
+                                course_id=course.id,
+                                assignment_id=assignment.id,
+                                student_id=student.id,
+                                grade_entry_id=grade.id,
+                                submission_snapshot_id=submission_snapshot.id,
+                                canvas_course_id=canvas_course_id,
+                                canvas_assignment_id=canvas_assignment_id,
+                                canvas_user_id=canvas_user_id,
+                                local_score=grade.score,
+                                canvas_score=score,
+                                local_status=grade.status.value if grade.status else None,
+                                canvas_status=status.value,
+                                local_source=grade.source.value if grade.source else None,
+                            )
+                            db.add(conflict)
+                            db.flush()
                             _add_event(
                                 db,
                                 run_id=run.id,
@@ -492,6 +511,11 @@ def run_canvas_sync(
                                 detail={
                                     "assignment_id": assignment.id,
                                     "student_id": student.id,
+                                    "conflict_id": conflict.id,
+                                    "local_score": grade.score,
+                                    "canvas_score": score,
+                                    "local_status": grade.status.value if grade.status else None,
+                                    "canvas_status": status.value,
                                     "reason": "Local override retained; Canvas value not applied",
                                 },
                             )

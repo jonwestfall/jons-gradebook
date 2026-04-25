@@ -31,6 +31,18 @@ npm run build
 
 ## Backend
 
+### 0) Pytest gate
+
+```bash
+cd backend
+pytest
+```
+
+- Target scope:
+  - API route tests for Canvas conflicts/diffs, tasks, workflow benchmarks, backup preflight/restore, Reports, and LLM Workbench
+  - Service tests for risk scoring, intervention deduplication, report generation, and de-identification
+  - Migration upgrade checks for current head
+
 ### 1) Compile/syntax gate
 
 ```bash
@@ -54,6 +66,7 @@ alembic upgrade head
 
 - Baseline V1: `docs/V1_QA_CHECKLIST.md`
 - Active workflow hardening QA: `docs/V2_WORKFLOW_QA_CHECKLIST.md`
+- Restore drills: `docs/RESTORE_RUNBOOK.md`
 
 Manual QA remains important because many workflows are visual and operational: a route can compile while still being awkward for repeated instructor use or cramped on a laptop display.
 

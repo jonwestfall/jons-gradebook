@@ -16,6 +16,8 @@ class TaskCreate(BaseModel):
     linked_interaction_id: int | None = None
     linked_advising_meeting_id: int | None = None
     source: str | None = None
+    outcome_tag: str | None = None
+    outcome_note: str | None = None
 
 
 class TaskUpdate(BaseModel):
@@ -28,6 +30,8 @@ class TaskUpdate(BaseModel):
     linked_course_id: int | None = None
     linked_interaction_id: int | None = None
     linked_advising_meeting_id: int | None = None
+    outcome_tag: str | None = None
+    outcome_note: str | None = None
 
 
 class TaskOut(BaseModel):
@@ -44,6 +48,24 @@ class TaskOut(BaseModel):
     linked_interaction_id: int | None
     linked_advising_meeting_id: int | None
     source: str
+    outcome_tag: str | None
+    outcome_note: str | None
     created_at: datetime
     updated_at: datetime
 
+
+class TaskBulkUpdate(BaseModel):
+    task_ids: list[int]
+    status: TaskStatus | None = None
+    priority: TaskPriority | None = None
+    due_at: datetime | None = None
+    due_shift_days: int | None = None
+    outcome_tag: str | None = None
+    outcome_note: str | None = None
+
+
+class WorkflowBenchmarkCreate(BaseModel):
+    workflow: str = Field(min_length=1, max_length=80)
+    action: str = Field(min_length=1, max_length=80)
+    duration_ms: int | None = None
+    context_json: dict = Field(default_factory=dict)

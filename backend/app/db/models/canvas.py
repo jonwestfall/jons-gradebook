@@ -35,6 +35,13 @@ class CanvasSyncEventAction(str, enum.Enum):
     unchanged = "unchanged"
 
 
+class CanvasSyncConflictStatus(str, enum.Enum):
+    pending = "pending"
+    kept_local = "kept_local"
+    accepted_canvas = "accepted_canvas"
+    ignored = "ignored"
+
+
 class CanvasSyncRun(Base, TimestampMixin):
     __tablename__ = "canvas_sync_runs"
 
@@ -57,6 +64,7 @@ class CanvasSyncRun(Base, TimestampMixin):
         "CanvasSubmissionSnapshot", back_populates="sync_run", cascade="all, delete-orphan"
     )
     events = relationship("CanvasSyncEvent", back_populates="sync_run", cascade="all, delete-orphan")
+    conflicts = relationship("CanvasSyncConflict", back_populates="sync_run", cascade="all, delete-orphan")
 
 
 class CanvasCourseSelection(Base, TimestampMixin):
@@ -150,3 +158,39 @@ class CanvasSyncEvent(Base, TimestampMixin):
     detail: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
 
     sync_run = relationship("CanvasSyncRun", back_populates="events")
+
+
+class CanvasSyncConflict(Base, TimestampMixin):
+    __tablename__ = "canvas_sync_conflicts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    sync_run_id: Mapped[int] = mapped_column(ForeignKey("canvas_sync_runs.id", ondelete="CASCADE"), nullable=False)
+    course_id: Mapped[int] = mapped_column(ForeignKey("courses.id", ondelete="CASCADE"), nullable=False, index=True)
+    assignment_id: Mapped[int] = mapped_column(ForeignKey("assignments.id", ondelete="CASCADE"), nullable=False, index=True)
+    student_id: Mapped[int] = mapped_column(ForeignKey("student_profiles.id", ondelete="CASCADE"), nullable=False, index=True)
+    grade_entry_id: Mapped[int] = mapped_column(ForeignKey("grade_entries.id", ondelete="CASCADE"), nullable=False, index=True)
+    submission_snapshot_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("canvas_submission_snapshots.id", ondelete="SET NULL")
+    )
+    canvas_course_id: Mapped[Optional[str]] = mapped_column(String(64), index=True)
+    canvas_assignment_id: Mapped[Optional[str]] = mapped_column(String(64), index=True)
+    canvas_user_id: Mapped[Optional[str]] = mapped_column(String(64), index=True)
+    local_score: Mapped[Optional[float]] = mapped_column()
+    canvas_score: Mapped[Optional[float]] = mapped_column()
+    local_status: Mapped[Optional[str]] = mapped_column(String(40))
+    canvas_status: Mapped[Optional[str]] = mapped_column(String(40))
+    local_source: Mapped[Optional[str]] = mapped_column(String(40))
+    status: Mapped[CanvasSyncConflictStatus] = mapped_column(
+        Enum(CanvasSyncConflictStatus, native_enum=False),
+        nullable=False,
+        default=CanvasSyncConflictStatus.pending,
+    )
+    rationale: Mapped[Optional[str]] = mapped_column(Text)
+    resolved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+    sync_run = relationship("CanvasSyncRun", back_populates="conflicts")
+    course = relationship("Course")
+    assignment = relationship("Assignment")
+    student = relationship("StudentProfile")
+    grade_entry = relationship("GradeEntry")
+    submission_snapshot = relationship("CanvasSubmissionSnapshot")

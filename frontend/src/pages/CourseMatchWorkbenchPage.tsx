@@ -8,7 +8,7 @@ type Course = {
   section_name?: string | null
 }
 
-type MatchStatus = 'suggested' | 'confirmed_canvas' | 'rejected'
+type MatchStatus = 'suggested' | 'confirmed' | 'rejected'
 
 type MatchSuggestion = {
   id: number
@@ -55,6 +55,7 @@ export function CourseMatchWorkbenchPage() {
 
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const workflowStartedAt = useMemo(() => Date.now(), [])
 
   async function loadCourses() {
     const rows = await api.get<Course[]>('/courses/')
@@ -133,6 +134,12 @@ export function CourseMatchWorkbenchPage() {
         suggestion_ids: selectedIds,
         note: action === 'reject' ? 'Rejected from instructor workbench.' : null,
       })
+      await api.post('/tasks/benchmarks', {
+        workflow: 'match_resolution',
+        action: `bulk_${action}`,
+        duration_ms: Date.now() - workflowStartedAt,
+        context_json: { course_id: selectedCourseId, count: selectedIds.length },
+      })
       await loadCourseData(selectedCourseId)
     } catch (err) {
       setError((err as Error).message)
@@ -150,6 +157,12 @@ export function CourseMatchWorkbenchPage() {
       } else {
         await api.post(`/courses/matches/${suggestionId}/reject`)
       }
+      await api.post('/tasks/benchmarks', {
+        workflow: 'match_resolution',
+        action,
+        duration_ms: Date.now() - workflowStartedAt,
+        context_json: { course_id: selectedCourseId, suggestion_id: suggestionId },
+      })
       await loadCourseData(selectedCourseId)
     } catch (err) {
       setError((err as Error).message)
@@ -181,7 +194,7 @@ export function CourseMatchWorkbenchPage() {
           </select>
           <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
             <option value="suggested">Suggested</option>
-            <option value="confirmed_canvas">Confirmed Canvas</option>
+            <option value="confirmed">Confirmed Canvas</option>
             <option value="rejected">Rejected</option>
             <option value="">All statuses</option>
           </select>

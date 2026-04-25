@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { App } from './App'
@@ -35,7 +36,102 @@ function mockApiFetch() {
     }
 
     if (url.includes('/api/v1/tasks/?')) {
-      return jsonResponse([])
+      return jsonResponse([
+        {
+          id: 77,
+          title: 'Follow up with Ada',
+          status: 'open',
+          priority: 'high',
+          due_at: null,
+          note: 'Risk reasons: missing work',
+          linked_student_id: null,
+          linked_course_id: null,
+          linked_interaction_id: null,
+          linked_advising_meeting_id: null,
+          source: 'rule_engine',
+          outcome_tag: null,
+          outcome_note: null,
+          created_at: '2026-04-24T12:00:00',
+          updated_at: '2026-04-24T12:00:00',
+        },
+      ])
+    }
+
+    if (url.includes('/api/v1/canvas/sync/runs/1/conflicts')) {
+      return jsonResponse([
+        {
+          id: 88,
+          sync_run_id: 1,
+          course_name: 'Biology 101',
+          assignment_title: 'Lab Report',
+          student_name: 'Ada Lovelace',
+          local: { score: 7, status: 'graded', source: 'manual_override' },
+          canvas: { score: 9, status: 'graded' },
+          status: 'pending',
+          rationale: null,
+          created_at: '2026-04-24T12:00:00',
+        },
+      ])
+    }
+
+    if (url.includes('/api/v1/canvas/sync/runs/1/diff')) {
+      return jsonResponse({
+        run_id: 1,
+        previous_run_id: null,
+        entity_type: 'submission',
+        rows: [
+          {
+            identity: 'course-1:assignment-1:user-1',
+            change_type: 'created',
+            changed_fields: [],
+            before: null,
+            after: { canvas_course_id: 'course-1', score: 9 },
+          },
+        ],
+      })
+    }
+
+    if (url.includes('/api/v1/canvas/sync/runs/1/events')) {
+      return jsonResponse({ total: 0, offset: 0, limit: 50, events: [] })
+    }
+
+    if (url.endsWith('/api/v1/canvas/sync/runs/1')) {
+      return jsonResponse({
+        id: 1,
+        snapshot_counts: { courses: 1, assignments: 1, enrollments: 1, submissions: 1 },
+        event_counts: { created: 1, updated: 0, deleted: 0 },
+        recent_events: [],
+      })
+    }
+
+    if (url.includes('/api/v1/canvas/sync/runs')) {
+      return jsonResponse([
+        {
+          id: 1,
+          trigger_type: 'manual',
+          status: 'completed',
+          started_at: '2026-04-24T12:00:00',
+          finished_at: '2026-04-24T12:01:00',
+          event_counts: { created: 1, updated: 0, deleted: 0 },
+        },
+      ])
+    }
+
+    if (url.includes('/api/v1/canvas/courses/discover')) {
+      return jsonResponse([{ canvas_course_id: 'course-1', name: 'Biology 101', is_selected: true }])
+    }
+
+    if (url.includes('/api/v1/canvas/student-metadata/mapping')) {
+      return jsonResponse({
+        mappings: [
+          { target_field: 'first_name', source_paths: ['user.first_name'], default_source_paths: ['user.first_name'] },
+        ],
+        common_source_paths: ['user.first_name'],
+      })
+    }
+
+    if (url.includes('/api/v1/canvas/student-metadata/preview')) {
+      return jsonResponse({ canvas_course_id: 'course-1', sample_count: 0, labels: [], rows: [] })
     }
 
     if (url.includes('/api/v1/documents/targets')) {
@@ -320,6 +416,33 @@ describe('App smoke routes', () => {
 
     expect(await screen.findByText('Task Queue')).toBeInTheDocument()
     expect(await screen.findByText('Run Intervention Rules')).toBeInTheDocument()
+    expect(await screen.findByText('Follow up with Ada')).toBeInTheDocument()
+  })
+
+  it('switches task queue into board view', async () => {
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter initialEntries={['/tasks']}>
+        <App />
+      </MemoryRouter>,
+    )
+
+    await user.click(await screen.findByText('Board View'))
+    expect(await screen.findByText('open')).toBeInTheDocument()
+    expect(await screen.findByText('Follow up with Ada')).toBeInTheDocument()
+  })
+
+  it('renders Canvas conflict and snapshot diff surfaces', async () => {
+    render(
+      <MemoryRouter initialEntries={['/canvas-sync']}>
+        <App />
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByText('Conflict Resolution')).toBeInTheDocument()
+    expect(await screen.findByText('Snapshot Diff Viewer')).toBeInTheDocument()
+    expect(await screen.findByText('Ada Lovelace')).toBeInTheDocument()
+    expect(await screen.findByText('course-1:assignment-1:user-1')).toBeInTheDocument()
   })
 
   it('renders course match workbench route', async () => {

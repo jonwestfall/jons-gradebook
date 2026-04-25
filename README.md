@@ -206,6 +206,7 @@ See [Testing Strategy](docs/TESTING_STRATEGY.md) and [V2 Workflow QA Checklist](
 - [Testing strategy](docs/TESTING_STRATEGY.md)
 - [V1 baseline QA checklist](docs/V1_QA_CHECKLIST.md)
 - [V2 workflow QA checklist](docs/V2_WORKFLOW_QA_CHECKLIST.md)
+- [Restore execution runbook](docs/RESTORE_RUNBOOK.md)
 - [Running changelog](docs/CHANGELOG.md)
 
 ## Current Boundaries

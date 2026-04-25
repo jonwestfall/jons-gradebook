@@ -43,9 +43,19 @@ class LLMInstructionTemplate(Base, TimestampMixin):
     instructions: Mapped[str] = mapped_column(Text, nullable=False)
     output_guidance: Mapped[Optional[str]] = mapped_column(Text)
     rubric_guidance: Mapped[Optional[str]] = mapped_column(Text)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    approval_status: Mapped[str] = mapped_column(String(40), nullable=False, default="draft")
+    approval_note: Mapped[Optional[str]] = mapped_column(Text)
+    approved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    parent_template_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("llm_instruction_templates.id", ondelete="SET NULL")
+    )
+    policy_pack: Mapped[Optional[str]] = mapped_column(String(120))
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     is_default: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     archived_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+    parent_template = relationship("LLMInstructionTemplate", remote_side=[id])
 
 
 class LLMRun(Base, TimestampMixin):

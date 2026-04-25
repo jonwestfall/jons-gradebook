@@ -20,6 +20,12 @@ type InstructionTemplate = {
   instructions: string
   output_guidance?: string | null
   rubric_guidance?: string | null
+  version?: number
+  approval_status?: string
+  approval_note?: string | null
+  approved_at?: string | null
+  parent_template_id?: number | null
+  policy_pack?: string | null
   is_active: boolean
   is_default: boolean
   archived_at?: string | null
@@ -225,6 +231,9 @@ export function LLMWorkbenchPage() {
       instructions: templateDraft.instructions,
       output_guidance: templateDraft.output_guidance,
       rubric_guidance: templateDraft.rubric_guidance,
+      approval_status: templateDraft.approval_status || 'draft',
+      approval_note: templateDraft.approval_note,
+      policy_pack: templateDraft.policy_pack,
       is_active: templateDraft.is_active,
       is_default: templateDraft.is_default,
     }
@@ -447,12 +456,37 @@ export function LLMWorkbenchPage() {
             <div className="form compact-form">
               <input value={templateDraft.name} onChange={(event) => setTemplateDraft({ ...templateDraft, name: event.target.value })} />
               <input value={templateDraft.task_type} onChange={(event) => setTemplateDraft({ ...templateDraft, task_type: event.target.value })} />
+              <div className="gradebook-toolbar compact-grid">
+                <select
+                  value={templateDraft.approval_status || 'draft'}
+                  onChange={(event) => setTemplateDraft({ ...templateDraft, approval_status: event.target.value })}
+                >
+                  <option value="draft">Draft</option>
+                  <option value="needs_review">Needs Review</option>
+                  <option value="approved">Approved</option>
+                  <option value="retired">Retired</option>
+                </select>
+                <input
+                  value={templateDraft.policy_pack || ''}
+                  onChange={(event) => setTemplateDraft({ ...templateDraft, policy_pack: event.target.value })}
+                  placeholder="Policy pack"
+                />
+              </div>
               <textarea value={templateDraft.instructions} onChange={(event) => setTemplateDraft({ ...templateDraft, instructions: event.target.value })} />
               <textarea
                 value={templateDraft.output_guidance || ''}
                 onChange={(event) => setTemplateDraft({ ...templateDraft, output_guidance: event.target.value })}
                 placeholder="Output guidance"
               />
+              <textarea
+                value={templateDraft.approval_note || ''}
+                onChange={(event) => setTemplateDraft({ ...templateDraft, approval_note: event.target.value })}
+                placeholder="Approval or review note"
+              />
+              <p className="table-subtle">
+                Version {templateDraft.version || 1}
+                {templateDraft.approved_at ? ` · approved ${new Date(templateDraft.approved_at).toLocaleString()}` : ''}
+              </p>
               <label className="inline-check">
                 <input
                   type="checkbox"
@@ -476,6 +510,10 @@ export function LLMWorkbenchPage() {
                       instructions: '',
                       output_guidance: '',
                       rubric_guidance: '',
+                      version: 1,
+                      approval_status: 'draft',
+                      approval_note: '',
+                      policy_pack: '',
                       is_active: true,
                       is_default: false,
                     })
@@ -502,6 +540,10 @@ export function LLMWorkbenchPage() {
                   instructions: '',
                   output_guidance: '',
                   rubric_guidance: '',
+                  version: 1,
+                  approval_status: 'draft',
+                  approval_note: '',
+                  policy_pack: '',
                   is_active: true,
                   is_default: false,
                 })

@@ -4,7 +4,7 @@ import enum
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String, Text
+from sqlalchemy import DateTime, Enum, ForeignKey, Integer, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.models.common import Base, TimestampMixin
@@ -43,8 +43,21 @@ class Task(Base, TimestampMixin):
         ForeignKey("advising_meetings.id", ondelete="SET NULL"), index=True
     )
     source: Mapped[str] = mapped_column(String(60), nullable=False, default="manual")
+    outcome_tag: Mapped[Optional[str]] = mapped_column(String(80))
+    outcome_note: Mapped[Optional[str]] = mapped_column(Text)
 
     linked_student = relationship("StudentProfile")
     linked_course = relationship("Course")
     linked_interaction = relationship("InteractionLog")
     linked_advising_meeting = relationship("AdvisingMeeting")
+
+
+class WorkflowBenchmarkEvent(Base, TimestampMixin):
+    __tablename__ = "workflow_benchmark_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    workflow: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    action: Mapped[str] = mapped_column(String(80), nullable=False)
+    duration_ms: Mapped[Optional[int]] = mapped_column(Integer)
+    context_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    completed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

@@ -162,7 +162,10 @@ def list_instruction_templates(db: Session = Depends(get_db)) -> list[dict]:
 
 @router.post("/instructions")
 def create_instruction(payload: LLMInstructionTemplateCreate, db: Session = Depends(get_db)) -> dict:
-    template = create_instruction_template(db, payload.model_dump())
+    data = payload.model_dump()
+    if data.get("approval_status") == "approved":
+        data["approved_at"] = datetime.now(timezone.utc)
+    template = create_instruction_template(db, data)
     return serialize_instruction_template(template)
 
 
@@ -174,6 +177,10 @@ def update_instruction(template_id: int, payload: LLMInstructionTemplateUpdate, 
         updates["archived_at"] = datetime.now(timezone.utc) if archived else None
         if archived:
             updates["is_active"] = False
+    if updates.get("approval_status") == "approved":
+        updates["approved_at"] = datetime.now(timezone.utc)
+    elif updates.get("approval_status") in {"draft", "needs_review", "retired"}:
+        updates["approved_at"] = None
     try:
         template = update_instruction_template(db, template_id, updates)
     except ValueError as exc:
