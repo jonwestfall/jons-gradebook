@@ -2,7 +2,7 @@
 
 This plan tracks what is shipped, what is in-flight, and what is next for Jon's Gradebook as a single-instructor, action-first cockpit. The product direction is to complement a hosted LMS with a private instructor-controlled operations layer for triage, advising, document handling, reporting, and reviewed AI-assisted feedback.
 
-## Progress Snapshot (Updated 2026-04-24)
+## Progress Snapshot (Updated 2026-04-27)
 
 ### Phase status
 - V1 Baseline: complete (accepted)
@@ -53,6 +53,8 @@ This plan tracks what is shipped, what is in-flight, and what is next for Jon's 
 - Saved views for gradebook/students/interactions.
 - Sticky action bars and density mode.
 - Mobile/tablet table behavior improved with prioritized column collapse.
+- Settings-managed Interface Preferences for Balanced, Minimal, and High Contrast themes.
+- Browser-local Demo mode for screenshot-safe example student/class data with visible global labeling.
 
 #### Test harness and validation
 - Frontend test harness added (Vitest + Testing Library + jsdom).
@@ -88,7 +90,7 @@ This plan tracks what is shipped, what is in-flight, and what is next for Jon's 
 ### Remaining V2 scope
 - Expand automated backend and workflow tests beyond the initial pytest/Vitest closeout coverage.
 - Run and record a restore drill using `docs/RESTORE_RUNBOOK.md`.
-- Continue UX polish on dense pages after real professor walkthroughs.
+- Continue UX polish on dense pages after real professor walkthroughs, using `docs/UI_UX_AUDIT.md` as the running design checkpoint.
 
 ## Phase 3: Analytics + Messaging Expansion
 

@@ -1,6 +1,13 @@
+import { handleDemoRequest } from './demoData'
+import { isDemoModeEnabled } from '../utils/uiPreferences'
+
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api/v1'
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  if (isDemoModeEnabled()) {
+    return handleDemoRequest(path, init) as Promise<T>
+  }
+
   const response = await fetch(`${API_BASE}${path}`, {
     headers: {
       ...(init?.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),

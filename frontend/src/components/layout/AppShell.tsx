@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { readLocalStorage, writeLocalStorage } from '../../utils/storage'
+import { AppTheme, isDemoModeEnabled, readAppTheme, UI_PREFERENCES_EVENT } from '../../utils/uiPreferences'
 
 type NavItem = {
   to: string
@@ -28,6 +29,8 @@ export function AppShell() {
   const navigate = useNavigate()
 
   const [collapsed, setCollapsed] = useState(false)
+  const [demoMode, setDemoMode] = useState(() => isDemoModeEnabled())
+  const [appTheme, setAppThemeState] = useState<AppTheme>(() => readAppTheme())
   const [density, setDensity] = useState<'comfortable' | 'compact'>(() => {
     const cached = readLocalStorage('gradebook-ui-density')
     return cached === 'compact' ? 'compact' : 'comfortable'
@@ -65,6 +68,28 @@ export function AppShell() {
   }, [density])
 
   useEffect(() => {
+    document.documentElement.dataset.appTheme = appTheme
+  }, [appTheme])
+
+  useEffect(() => {
+    document.documentElement.dataset.demoMode = demoMode ? 'enabled' : 'disabled'
+  }, [demoMode])
+
+  useEffect(() => {
+    function syncPreferences() {
+      setDemoMode(isDemoModeEnabled())
+      setAppThemeState(readAppTheme())
+    }
+
+    window.addEventListener(UI_PREFERENCES_EVENT, syncPreferences)
+    window.addEventListener('storage', syncPreferences)
+    return () => {
+      window.removeEventListener(UI_PREFERENCES_EVENT, syncPreferences)
+      window.removeEventListener('storage', syncPreferences)
+    }
+  }, [])
+
+  useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault()
@@ -95,19 +120,21 @@ export function AppShell() {
     <div className={layoutClasses.join(' ')}>
       <aside className="sidebar">
         <div className="sidebar-top-row">
-          <button className="sidebar-toggle" onClick={() => setCollapsed((value) => !value)}>
+          <button className="sidebar-toggle" onClick={() => setCollapsed((value) => !value)} aria-pressed={collapsed}>
             {collapsed ? 'Expand' : 'Collapse'}
           </button>
           <button
             className="sidebar-toggle"
             onClick={() => setDensity((value) => (value === 'comfortable' ? 'compact' : 'comfortable'))}
             title="Toggle table density"
+            aria-pressed={density === 'compact'}
           >
             Density: {density === 'comfortable' ? 'Comfort' : 'Compact'}
           </button>
         </div>
         <h1>Jon&apos;s Gradebook</h1>
         <p className="subtitle">Single-user advising and grading workspace</p>
+        {demoMode ? <div className="demo-mode-pill">Demo mode</div> : null}
         <button className="sidebar-toggle" onClick={() => setPaletteOpen(true)} title="Command palette (Ctrl/Cmd+K)">
           Command Palette
         </button>
@@ -127,6 +154,12 @@ export function AppShell() {
         </nav>
       </aside>
       <main className="content">
+        {demoMode ? (
+          <div className="demo-mode-banner" role="status">
+            <strong>Demo mode</strong>
+            <span>Showing screenshot-safe example student and class data. Live records are not being loaded.</span>
+          </div>
+        ) : null}
         <Outlet />
       </main>
 

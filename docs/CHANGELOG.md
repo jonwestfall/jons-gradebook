@@ -22,6 +22,13 @@ If work is not committed yet, use `commit WORKTREE` temporarily and replace it a
 
 ---
 
+## 2026-04-27
+- [commit WORKTREE] [area: frontend/ui] Added Settings-controlled Interface Preferences with Balanced, Minimal, and High Contrast themes.
+- [commit WORKTREE] [area: frontend/demo] Added browser-local Demo mode with screenshot-safe student, course, task, document, dashboard, and gradebook sample data plus global "Demo mode" labeling.
+- [commit WORKTREE] [area: frontend/demo] Expanded Demo mode with example rubrics, rubric evaluations, attendance roll-call records, report templates, report preview content, report history, and demo export results.
+- [commit WORKTREE] [area: frontend/ui] Refreshed core UI tokens, card/control radius, focus states, dashboard metric cards, course card grid, and neutral/minimal theme styling for readability and themeability.
+- [commit WORKTREE] [area: docs] Added UI/UX audit with external LMS/advising pattern notes and updated README/testing/roadmap docs for demo mode and theme validation.
+
 ## 2026-04-25
 - [commit WORKTREE] [area: canvas-sync] Added Canvas local-override conflict capture, conflict resolution endpoints, and sync-run snapshot diff API/UI.
 - [commit WORKTREE] [area: tasks] Added task board view, bulk priority/due-date/outcome updates, outcome tags, and workflow benchmark event capture.

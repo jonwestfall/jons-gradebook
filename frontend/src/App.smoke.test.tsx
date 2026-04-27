@@ -389,6 +389,13 @@ function mockApiFetch() {
 
 describe('App smoke routes', () => {
   beforeEach(() => {
+    const store = new Map<string, string>()
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => store.get(key) ?? null,
+      setItem: (key: string, value: string) => store.set(key, value),
+      removeItem: (key: string) => store.delete(key),
+      clear: () => store.clear(),
+    })
     vi.stubGlobal('fetch', mockApiFetch())
   })
 
@@ -403,8 +410,8 @@ describe('App smoke routes', () => {
       </MemoryRouter>,
     )
 
-    expect(await screen.findByText('Action Dashboard')).toBeInTheDocument()
     expect(await screen.findByText('Needs Grading / Match Review')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Action Dashboard' })).toBeInTheDocument()
   })
 
   it('renders task queue route', async () => {

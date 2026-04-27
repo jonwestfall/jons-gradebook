@@ -119,8 +119,12 @@ export function DashboardPage() {
 
   return (
     <section>
-      <h2>Action Dashboard</h2>
-      <p className="subtitle">Prioritized queues for grading, outreach, sync cleanup, and advising follow-ups.</p>
+      <div className="page-heading-row">
+        <div>
+          <h2>Action Dashboard</h2>
+          <p className="subtitle">Prioritized queues for grading, outreach, sync cleanup, and advising follow-ups.</p>
+        </div>
+      </div>
 
       <article className="card action-bar">
         <div className="gradebook-toolbar compact-grid">
@@ -140,10 +144,10 @@ export function DashboardPage() {
 
       <div className="grid" style={{ marginTop: '0.8rem' }}>
         {cardConfig.map((card) => (
-          <article key={card.key} className="card">
+          <article key={card.key} className="card metric-card">
             <h3>{card.title}</h3>
             <p className="subtitle">{card.description}</p>
-            <p style={{ fontSize: '1.45rem', fontWeight: 700 }}>{summary.cards[card.key]}</p>
+            <p className="metric-value">{summary.cards[card.key]}</p>
             <Link to={card.href}>{card.cta}</Link>
           </article>
         ))}

@@ -1,5 +1,12 @@
 import { FormEvent, useEffect, useState } from 'react'
 import { api } from '../api/client'
+import {
+  AppTheme,
+  isDemoModeEnabled,
+  readAppTheme,
+  setAppTheme,
+  setDemoModeEnabled,
+} from '../utils/uiPreferences'
 
 type BackupArtifact = {
   id: number
@@ -59,6 +66,8 @@ export function SettingsPage() {
   const [rulePriority, setRulePriority] = useState<'low' | 'medium' | 'high'>('high')
   const [ruleDueDays, setRuleDueDays] = useState('2')
   const [ruleTemplate, setRuleTemplate] = useState('Follow up with student on missing work and recovery plan.')
+  const [demoMode, setDemoMode] = useState(() => isDemoModeEnabled())
+  const [theme, setTheme] = useState<AppTheme>(() => readAppTheme())
 
   async function loadBackups() {
     const data = await api.get<BackupArtifact[]>('/backup/')
@@ -159,6 +168,47 @@ export function SettingsPage() {
         <li className="card">Daily Canvas sync schedule is server-managed via APScheduler.</li>
         <li className="card">Daily backup schedule is server-managed via APScheduler.</li>
       </ul>
+
+      <article className="card settings-preference-panel">
+        <div>
+          <h3>Interface Preferences</h3>
+          <p className="subtitle">
+            Adjust presentation without changing app data. Demo mode is browser-local and returns screenshot-safe sample data.
+          </p>
+        </div>
+        <div className="settings-preference-grid">
+          <label>
+            Theme
+            <select
+              value={theme}
+              onChange={(event) => {
+                const nextTheme = event.target.value as AppTheme
+                setTheme(nextTheme)
+                setAppTheme(nextTheme)
+              }}
+            >
+              <option value="default">Balanced</option>
+              <option value="minimal">Minimal</option>
+              <option value="contrast">High Contrast</option>
+            </select>
+          </label>
+          <label className="toggle-row">
+            <input
+              type="checkbox"
+              checked={demoMode}
+              onChange={(event) => {
+                const enabled = event.target.checked
+                setDemoMode(enabled)
+                setDemoModeEnabled(enabled)
+              }}
+            />
+            <span>
+              <strong>Demo mode</strong>
+              <small>Show example student and class data for GitHub screenshots.</small>
+            </span>
+          </label>
+        </div>
+      </article>
 
       <article className="card">
         <h3>Backups</h3>

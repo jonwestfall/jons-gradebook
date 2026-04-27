@@ -57,7 +57,7 @@ export function CoursesPage() {
         <button type="submit">Create Local Course</button>
       </form>
       {error ? <p className="error">{error}</p> : null}
-      <ul className="list">
+      <ul className="list course-card-grid">
         {courses.map((course) => (
           <li key={course.id} className="card">
             <h3>{course.name}</h3>

@@ -2,7 +2,7 @@
 
 This document defines current quality gates and the planned expansion path for Jon's Gradebook. The goal is to protect the workflows a professor would trust day to day: Canvas sync, grade review, advising follow-up, document storage, report generation, and privacy-first LLM-assisted feedback.
 
-## Current Test Gates (as of 2026-04-24)
+## Current Test Gates (as of 2026-04-27)
 
 ## Frontend
 
@@ -18,6 +18,7 @@ npm run test
   - route-level smoke coverage for key pages
   - verifies app shell + primary workflow routes render under mocked API
   - includes LLM Workbench smoke coverage for templates, job history, and inspector surfaces
+  - should be expanded to verify Demo mode labeling and theme persistence
 
 ### 2) Type/build gate
 
@@ -109,6 +110,8 @@ Manual QA remains important because many workflows are visual and operational: a
 2. Add persistence tests:
 - saved views in students/interactions/gradebook
 - density mode persistence
+- theme preference persistence
+- Demo mode switch persistence and global banner visibility
 
 3. Add keyboard interaction tests:
 - command palette open/execute/close
@@ -130,13 +133,15 @@ Manual QA remains important because many workflows are visual and operational: a
 
 Use this when introducing the app to a new faculty user:
 
-1. Start the app and explain that Canvas sync is read-only in the current phase.
-2. Show the dashboard and how it gathers actionable work into one page.
-3. Open a course gradebook, demonstrate a local edit, and show the audit/undo trail.
-4. Open a student profile and show grades, attendance, interactions, documents, reports, and feedback artifacts together.
-5. Upload or preview a document.
-6. Generate a student report and confirm it appears in Documents/Profile.
-7. Prepare an LLM Workbench prompt from sample student work, show de-identification, paste or run local output, and save edited final feedback.
+1. For public screenshots or a no-data walkthrough, enable Demo mode from `/settings` and confirm the "Demo mode" banner appears on every route.
+2. Switch between Balanced, Minimal, and High Contrast themes and confirm content remains readable.
+3. Start the app and explain that Canvas sync is read-only in the current phase.
+4. Show the dashboard and how it gathers actionable work into one page.
+5. Open a course gradebook, demonstrate a local edit, and show the audit/undo trail.
+6. Open a student profile and show grades, attendance, interactions, documents, reports, and feedback artifacts together.
+7. Upload or preview a document.
+8. Generate a student report and confirm it appears in Documents/Profile.
+9. Prepare an LLM Workbench prompt from sample student work, show de-identification, paste or run local output, and save edited final feedback.
 
 ## Release Validation Recommendation
 

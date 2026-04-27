@@ -119,6 +119,9 @@ Use this checklist to validate the V2 action-first workflows for a professor-fac
 - [ ] Sidebar collapse retains icon recognizability and route tooltips.
 - [ ] Command palette opens with Ctrl/Cmd+K and navigates.
 - [ ] Density toggle changes table spacing.
+- [ ] Theme selector in Settings switches Balanced, Minimal, and High Contrast themes without text contrast regressions.
+- [ ] Demo mode switch in Settings shows screenshot-safe sample data on Dashboard, Students, Courses, Course Gradebook, Tasks, and Student Profile.
+- [ ] Demo mode banner/pill clearly labels every screen while enabled.
 - [ ] Sticky action bars remain visible while scrolling dense pages.
 - [ ] Saved views function on:
   - [ ] gradebook

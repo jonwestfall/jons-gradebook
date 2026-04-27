@@ -14,6 +14,7 @@ Benefits over depending only on the LMS:
 - **Read-only Canvas sync first:** Pull Canvas data into a safer local workspace without immediately writing changes back to the LMS.
 - **Cross-workflow student view:** See grades, attendance, documents, advising notes, interactions, rubrics, tasks, and reports from a student-centered profile.
 - **Faster repeated work:** Use saved views, command palette navigation, density controls, match workbenches, and inline task updates for the operational work an LMS often makes click-heavy.
+- **Screenshot-safe demo mode:** Toggle browser-local demo data from Settings to show example students, courses, tasks, gradebooks, rubrics, attendance, and reports without exposing live records.
 - **Better auditability:** Track local grade edits, match decisions, document versions, report runs, and feedback artifacts.
 - **Privacy-first AI support:** Prepare de-identified prompts, use copy/paste or local Ollama workflows, and save only instructor-approved final feedback to the student file by default.
 - **Custom reporting:** Build editable PDF/PNG student report templates with section controls, theme colors, logo support, and generated artifacts linked back to Documents and Student Profile.
@@ -169,6 +170,8 @@ All API endpoints are under `/api/v1`.
 
 ## Recommended First Walkthrough
 
+For public screenshots or a no-data tour, open `/settings`, enable **Demo mode**, and choose the Balanced, Minimal, or High Contrast theme under Interface Preferences. Demo mode is browser-local and clearly labels every screen.
+
 1. Configure Canvas access and run a read-only sync.
 2. Open the Action Dashboard to see what needs attention.
 3. Review one course gradebook and resolve assignment matches.
@@ -204,6 +207,7 @@ See [Testing Strategy](docs/TESTING_STRATEGY.md) and [V2 Workflow QA Checklist](
 - [Phased implementation plan](docs/PHASED_IMPLEMENTATION_PLAN.md)
 - [Future features backlog](docs/NEXT_PHASE_FEATURE_BACKLOG.md)
 - [Testing strategy](docs/TESTING_STRATEGY.md)
+- [UI/UX audit](docs/UI_UX_AUDIT.md)
 - [V1 baseline QA checklist](docs/V1_QA_CHECKLIST.md)
 - [V2 workflow QA checklist](docs/V2_WORKFLOW_QA_CHECKLIST.md)
 - [Restore execution runbook](docs/RESTORE_RUNBOOK.md)
