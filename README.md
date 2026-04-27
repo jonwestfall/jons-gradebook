@@ -1,5 +1,9 @@
 # Jon's Gradebook
 
+<p align="center">
+  <img src="gradebook-logo.png" alt="Jon's Gradebook logo" width="220">
+</p>
+
 Jon's Gradebook is a single-instructor academic operations cockpit for professors, advisors, and teaching staff who want more control than a hosted LMS usually provides. It brings gradebook work, student follow-up, advising notes, document handling, report generation, and privacy-first LLM-assisted feedback into one local, Docker-deployable workspace.
 
 The app is intentionally built around the daily work of teaching: find the students who need attention, understand why, act quickly, keep an audit trail, and produce useful student-facing artifacts without scattering context across Canvas, spreadsheets, shared drives, email drafts, and local notes.
@@ -212,6 +216,7 @@ See [Testing Strategy](docs/TESTING_STRATEGY.md) and [V2 Workflow QA Checklist](
 
 ## Documentation Map
 
+- [License](LICENSE.md)
 - [Phased implementation plan](docs/PHASED_IMPLEMENTATION_PLAN.md)
 - [Future features backlog](docs/NEXT_PHASE_FEATURE_BACKLOG.md)
 - [Testing strategy](docs/TESTING_STRATEGY.md)
@@ -229,6 +234,10 @@ See [Testing Strategy](docs/TESTING_STRATEGY.md) and [V2 Workflow QA Checklist](
 - Messaging workflows currently log outreach and candidate lists; external delivery is future-phase.
 - LLM workflows are assistive. The instructor reviews and approves final feedback.
 - Rubric context can guide LLM feedback, but rubric scoring remains manual in the current workbench.
+
+## License
+
+Jon's Gradebook is licensed under the [GNU Affero General Public License, version 3](LICENSE.md).
 
 ## Troubleshooting
 

@@ -28,6 +28,7 @@ If work is not committed yet, use `commit WORKTREE` temporarily and replace it a
 - [commit WORKTREE] [area: frontend/demo] Expanded Demo mode with example rubrics, rubric evaluations, attendance roll-call records, report templates, report preview content, report history, and demo export results.
 - [commit WORKTREE] [area: frontend/demo] Fixed demo-mode Advising and Documents fixture shapes so the public walkthrough routes render without live backend data.
 - [commit WORKTREE] [area: docs] Added a screenshot gallery, reusable demo screenshot capture script, and README screenshot previews for social sharing.
+- [commit WORKTREE] [area: docs/legal] Added README logo placement and AGPL-3.0-only licensing in `LICENSE.md`.
 - [commit WORKTREE] [area: frontend/ui] Refreshed core UI tokens, card/control radius, focus states, dashboard metric cards, course card grid, and neutral/minimal theme styling for readability and themeability.
 - [commit WORKTREE] [area: docs] Added UI/UX audit with external LMS/advising pattern notes and updated README/testing/roadmap docs for demo mode and theme validation.
 
