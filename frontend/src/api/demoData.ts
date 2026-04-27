@@ -778,7 +778,19 @@ export function handleDemoRequest(path: string, init?: RequestInit): unknown {
   }
   if (pathname === '/tasks/targets') return { students: studentTargets(), courses: courseTargets() }
   if (pathname === '/tasks/') return demoTasks
-  if (pathname === '/documents/targets') return { students: studentTargets(), document_categories: settingsOptions().document_categories }
+  if (pathname === '/documents/targets') {
+    return {
+      students: studentTargets(),
+      advisees: students
+        .filter((student) => student.is_advisee)
+        .map((student) => ({
+          id: 501 + student.id,
+          name: studentName(student),
+          student_profile_id: student.id,
+        })),
+      document_categories: settingsOptions().document_categories,
+    }
+  }
   if (pathname === '/documents/') {
     return [
       {
@@ -788,12 +800,19 @@ export function handleDemoRequest(path: string, init?: RequestInit): unknown {
         document_type: 'txt',
         owner_type: 'student',
         owner_id: 101,
-        owner_label: 'Maya Chen (S-2026-014)',
-        linked_student_ids: [101],
+        owner_name: 'Maya Chen (S-2026-014)',
+        linked_students: [studentTargets()[0]],
         updated_at: '2026-04-25T17:15:00-05:00',
+        created_at: '2026-04-25T16:45:00-05:00',
         current_version: 2,
-        latest_filename: 'methods-feedback.txt',
-        latest_size_bytes: 1842,
+        latest_version: {
+          version_number: 2,
+          original_filename: 'methods-feedback.txt',
+          mime_type: 'text/plain',
+          size_bytes: 1842,
+          checksum_sha256: 'demo-methods-feedback',
+          updated_at: '2026-04-25T17:15:00-05:00',
+        },
       },
     ]
   }
@@ -845,7 +864,16 @@ export function handleDemoRequest(path: string, init?: RequestInit): unknown {
   if (pathname === '/interactions/targets') return { students: studentTargets(), courses: courseTargets(), advisees: studentTargets().filter((student) => student.id !== 102) }
   if (pathname === '/interactions/') return profileFor(101).recent_interactions
   if (pathname === '/advising/advisees') {
-    return students.filter((student) => student.is_advisee).map((student) => ({ id: 501 + student.id, student_profile_id: student.id, student_name: studentName(student), email: student.email, student_number: student.student_number }))
+    return students.filter((student) => student.is_advisee).map((student) => ({
+      id: 501 + student.id,
+      student_profile_id: student.id,
+      first_name: student.first_name,
+      last_name: student.last_name,
+      email: student.email,
+      student_number: student.student_number,
+      latest_meeting_at: student.id === 101 ? '2026-04-30T14:00:00-05:00' : '2026-04-26T11:05:00-05:00',
+      meeting_count: student.id === 101 ? 1 : 2,
+    }))
   }
   if (pathname === '/advising/meetings') return profileFor(101).advising_meetings
   if (pathname === '/attendance/courses') return courseTargets()

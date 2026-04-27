@@ -20,6 +20,14 @@ Benefits over depending only on the LMS:
 - **Custom reporting:** Build editable PDF/PNG student report templates with section controls, theme colors, logo support, and generated artifacts linked back to Documents and Student Profile.
 - **Portable deployment:** Run the app with Docker and keep storage under your control.
 
+## Screenshot Tour
+
+The app includes a browser-local demo mode for screenshot-safe walkthroughs. See the full [Screenshot Gallery](docs/SCREENSHOT_GALLERY.md) for a social-post-ready tour of the core workflows.
+
+![Demo action dashboard](docs/screenshots/01-dashboard.png)
+
+![Demo report builder](docs/screenshots/08-reports.png)
+
 ## Core Functions
 
 ### Action Dashboard
@@ -208,6 +216,7 @@ See [Testing Strategy](docs/TESTING_STRATEGY.md) and [V2 Workflow QA Checklist](
 - [Future features backlog](docs/NEXT_PHASE_FEATURE_BACKLOG.md)
 - [Testing strategy](docs/TESTING_STRATEGY.md)
 - [UI/UX audit](docs/UI_UX_AUDIT.md)
+- [Screenshot gallery](docs/SCREENSHOT_GALLERY.md)
 - [V1 baseline QA checklist](docs/V1_QA_CHECKLIST.md)
 - [V2 workflow QA checklist](docs/V2_WORKFLOW_QA_CHECKLIST.md)
 - [Restore execution runbook](docs/RESTORE_RUNBOOK.md)
