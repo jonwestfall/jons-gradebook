@@ -78,11 +78,43 @@ def upgrade() -> None:
         op.create_index("ix_llm_workbench_jobs_student_profile_id", "llm_workbench_jobs", ["student_profile_id"])
         op.create_index("ix_llm_workbench_jobs_source_document_id", "llm_workbench_jobs", ["source_document_id"])
 
+    # The initial migration creates from current metadata, so a clean install may
+    # already have governance columns that are formally introduced in 0017.
+    # Include values for those non-null columns when they are present while
+    # preserving the historical 0015 -> 0016 upgrade path where they are absent.
+    template_columns = {column["name"] for column in sa.inspect(bind).get_columns("llm_instruction_templates")}
+    insert_columns = [
+        "name",
+        "description",
+        "task_type",
+        "instructions",
+        "output_guidance",
+        "rubric_guidance",
+        "is_active",
+        "is_default",
+    ]
+    selected_values = [
+        "seed.name",
+        "seed.description",
+        "seed.task_type",
+        "seed.instructions",
+        "seed.output_guidance",
+        "seed.rubric_guidance",
+        "true",
+        "seed.is_default",
+    ]
+    if "version" in template_columns:
+        insert_columns.append("version")
+        selected_values.append("1")
+    if "approval_status" in template_columns:
+        insert_columns.append("approval_status")
+        selected_values.append("'draft'")
+
     op.execute(
-        """
+        f"""
         INSERT INTO llm_instruction_templates
-            (name, description, task_type, instructions, output_guidance, rubric_guidance, is_active, is_default)
-        SELECT seed.name, seed.description, seed.task_type, seed.instructions, seed.output_guidance, seed.rubric_guidance, true, seed.is_default
+            ({", ".join(insert_columns)})
+        SELECT {", ".join(selected_values)}
         FROM (
             VALUES
             (

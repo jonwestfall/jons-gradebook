@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel
 
 
@@ -7,3 +9,4 @@ class BackupCreateRequest(BaseModel):
 
 class BackupRestoreRequest(BaseModel):
     backup_id: int
+    confirmation: Literal["RESTORE"]

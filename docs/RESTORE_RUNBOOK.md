@@ -8,6 +8,19 @@ Use this runbook to prove that encrypted backup artifacts can restore the databa
 - Confirm `SECRET_KEY` and `ENCRYPTION_KEY` match the environment that created the backup.
 - Create a fresh backup immediately before any restore attempt.
 - Keep Canvas write-back disabled; restore is local state recovery only.
+- Keep the backend process running as a single instance during restore and do not interrupt it.
+
+## Built-In Restore Safeguards
+
+Before live data is changed, the backend now:
+
+- requires the exact server-side confirmation value `RESTORE`
+- verifies the encrypted artifact SHA-256 checksum and decryptability
+- validates the backup format, table names, columns, file sizes, and per-file checksums for newly created artifacts
+- rejects absolute, traversal, duplicate, or otherwise unsafe storage paths
+- stages every restored file beside the live storage directory
+
+Database rows are then replaced in foreign-key-safe order, PostgreSQL identity sequences are reset, and the staged storage directory is swapped into place. If an error occurs before the database commit completes, the database transaction is rolled back and the previous storage directory is restored.
 
 ## Drill Checklist
 
@@ -27,6 +40,7 @@ Use this runbook to prove that encrypted backup artifacts can restore the databa
    - At least one stored document downloads or previews.
    - Report history and generated document links remain intact.
    - LLM Workbench jobs retain prompt/output history and final feedback links.
+   - Create one disposable task after restore and confirm its ID does not conflict with restored records.
 9. Run automated checks:
 
 ```bash
@@ -34,8 +48,11 @@ cd frontend
 npm run test
 npm run build
 
-cd /Users/jon/projects/git/jons-gradebook
+cd ..
 python3 -m compileall backend/app
+
+cd backend
+pytest tests/test_backup_restore.py
 ```
 
 10. Log the result in the evidence record.
@@ -73,8 +90,38 @@ Automated checks:
 - `npm run test`:
 - `npm run build`:
 - `python3 -m compileall backend/app`:
+- `pytest tests/test_backup_restore.py`:
 
 Critical issues:
 1.
 2.
 3.
+
+## Completed Drill: 2026-07-24
+
+Environment:
+- isolated disposable `postgres:16` container on localhost
+- clean migration from an empty database through `20260425_0017` (head)
+- temporary storage and backup directories created by pytest and removed afterward
+
+Preflight evidence:
+- tasks: 2 current rows vs 1 backup row (`-1` restore delta)
+- stored files: 2 current files vs 1 backup file (`-1` restore delta)
+- lowercase confirmation was rejected with HTTP 422 before restore
+
+Restore result:
+- all 48 restorable mapped tables were processed; `backup_artifacts` remained available
+- the original linked student/course task was restored and the post-backup task was removed
+- the encrypted document was restored, decrypted, and downloaded with its original content
+- the post-backup extra file was removed
+- a new task inserted successfully after restore, proving the PostgreSQL task identity sequence was reset beyond restored IDs
+
+Post-restore validation:
+- Dashboard, Students, Courses, Documents, Reports, LLM Workbench, and Settings API routes returned HTTP 200
+- full backend suite with PostgreSQL drill: 9 passed
+- frontend Vitest suite: 8 passed
+- frontend production build: passed
+
+Issue found and corrected during the drill:
+- clean migration initially failed in `20260424_0016` because its instruction-template seed omitted non-null governance columns already present when the metadata-backed initial migration created the current schema
+- the seed now detects those columns and supplies compatible values while retaining the historical `0015 -> 0016` upgrade path

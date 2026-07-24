@@ -134,7 +134,7 @@ export function SettingsPage() {
     try {
       const result = await api.post<{ restored_tables: number; restored_files: number; generated_at?: string }>(
         '/backup/restore',
-        { backup_id: selectedBackupId },
+        { backup_id: selectedBackupId, confirmation: 'RESTORE' },
       )
       setLastRestoreMessage(
         `Restore complete: ${result.restored_tables} tables and ${result.restored_files} files restored.`,
@@ -240,7 +240,10 @@ export function SettingsPage() {
           <button onClick={() => void loadBackups()} disabled={busy}>
             Refresh Backups
           </button>
-          <button onClick={() => void restoreSelectedBackup()} disabled={busy || !selectedBackupId}>
+          <button
+            onClick={() => void restoreSelectedBackup()}
+            disabled={busy || !selectedBackupId || restorePhrase.trim().toUpperCase() !== 'RESTORE'}
+          >
             Restore Selected Backup
           </button>
         </div>

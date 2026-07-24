@@ -43,11 +43,17 @@ pytest
   - API route tests for Canvas conflicts/diffs, tasks, workflow benchmarks, backup preflight/restore, Reports, and LLM Workbench
   - Service tests for risk scoring, intervention deduplication, report generation, and de-identification
   - Migration upgrade checks for current head
+- Current restore coverage:
+  - exact server-side confirmation enforcement
+  - database and stored-file replacement from a validated encrypted artifact
+  - whole-artifact checksum tamper rejection before mutation
+  - unsafe backup file path rejection before mutation
+  - SQLite foreign-key enforcement in the fast API test fixture
 
 ### 1) Compile/syntax gate
 
 ```bash
-cd /Users/jon/projects/git/jons-gradebook
+cd /path/to/jons-gradebook
 python3 -m compileall backend/app
 ```
 

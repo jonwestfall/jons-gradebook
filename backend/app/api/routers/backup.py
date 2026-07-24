@@ -8,6 +8,7 @@ from app.db.models import BackupArtifact
 from app.db.session import get_db
 from app.schemas.backup import BackupCreateRequest, BackupRestoreRequest
 from app.services.backup import (
+    BackupValidationError,
     create_encrypted_backup,
     inspect_backup,
     inspect_current_state,
@@ -50,7 +51,10 @@ def get_backup(backup_id: int, db: Session = Depends(get_db)) -> dict:
     artifact = db.get(BackupArtifact, backup_id)
     if not artifact:
         raise HTTPException(status_code=404, detail="Backup not found")
-    details = inspect_backup(artifact)
+    try:
+        details = inspect_backup(artifact)
+    except BackupValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {
         "id": artifact.id,
         "backup_path": artifact.backup_path,
@@ -68,7 +72,10 @@ def get_backup_restore_preflight(backup_id: int, db: Session = Depends(get_db)) 
     if not artifact:
         raise HTTPException(status_code=404, detail="Backup not found")
 
-    backup_details = inspect_backup(artifact)
+    try:
+        backup_details = inspect_backup(artifact)
+    except BackupValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     current_details = inspect_current_state(db)
 
     backup_tables = backup_details.get("table_counts", {})
@@ -100,7 +107,10 @@ def restore_backup(payload: BackupRestoreRequest, db: Session = Depends(get_db))
     if not artifact:
         raise HTTPException(status_code=404, detail="Backup not found")
 
-    restored = restore_from_backup_artifact(db, artifact)
+    try:
+        restored = restore_from_backup_artifact(db, artifact)
+    except BackupValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {
         "backup_id": artifact.id,
         "backup_path": artifact.backup_path,

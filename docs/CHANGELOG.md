@@ -22,6 +22,12 @@ If work is not committed yet, use `commit WORKTREE` temporarily and replace it a
 
 ---
 
+## 2026-07-24
+- [commit WORKTREE] [area: backup] Hardened encrypted backup creation and restore with artifact/file checksums, format and path validation, staged storage replacement, foreign-key-safe table restoration, PostgreSQL sequence repair, rollback handling, and server-enforced `RESTORE` confirmation.
+- [commit WORKTREE] [area: migrations] Fixed clean PostgreSQL upgrades when the metadata-backed initial migration creates later LLM governance columns before the `0016` seed runs.
+- [commit WORKTREE] [area: testing] Added backup/restore regression coverage for successful database/file recovery, confirmation enforcement, tampered artifacts, unsafe paths, SQLite foreign-key behavior, and a real PostgreSQL restore drill with identity-sequence validation.
+- [commit WORKTREE] [area: docs] Updated the restore runbook and testing strategy to document the enforced safety contract and validation commands.
+
 ## 2026-04-27
 - [commit WORKTREE] [area: frontend/ui] Added Settings-controlled Interface Preferences with Balanced, Minimal, and High Contrast themes.
 - [commit WORKTREE] [area: frontend/demo] Added browser-local Demo mode with screenshot-safe student, course, task, document, dashboard, and gradebook sample data plus global "Demo mode" labeling.
