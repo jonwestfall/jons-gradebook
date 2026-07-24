@@ -1,7 +1,7 @@
 import json
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -36,8 +36,44 @@ class Settings(BaseSettings):
     backup_root: str = Field(default="/data/backups", alias="BACKUP_ROOT")
 
     cors_origins_raw: str = Field(default="http://localhost:5173", alias="CORS_ORIGINS")
+    allowed_hosts_raw: str = Field(default="localhost,127.0.0.1,testserver", alias="ALLOWED_HOSTS")
 
     llm_deidentify_default: bool = Field(default=True, alias="LLM_DEIDENTIFY_DEFAULT")
+
+    @model_validator(mode="after")
+    def validate_production_secrets(self) -> "Settings":
+        if self.env.strip().lower() != "production":
+            return self
+
+        insecure_values = {
+            "",
+            "change-me",
+            "development-secret",
+            "replace-me",
+            "replace-me-with-real-secret",
+            "replace-with-fernet-key",
+            "change-this-with-a-32-byte-base64-fernet-key",
+        }
+        problems: list[str] = []
+
+        def is_insecure_secret(value: str) -> bool:
+            normalized = value.strip().lower()
+            return (
+                normalized in insecure_values
+                or normalized.startswith(("change-", "replace-"))
+                or len(normalized) < 32
+            )
+
+        if is_insecure_secret(self.secret_key):
+            problems.append("SECRET_KEY must be a non-placeholder value of at least 32 characters")
+        if is_insecure_secret(self.encryption_key):
+            problems.append("ENCRYPTION_KEY must be a non-placeholder value of at least 32 characters")
+        database_url = self.database_url.lower()
+        if "gradebook:gradebook@" in database_url or "replace-" in database_url or "change-" in database_url:
+            problems.append("DATABASE_URL must not use the default gradebook database password")
+        if problems:
+            raise ValueError("Unsafe production configuration: " + "; ".join(problems))
+        return self
 
     @property
     def cors_origins(self) -> list[str]:
@@ -54,6 +90,10 @@ class Settings(BaseSettings):
                 pass
 
         return [origin.strip() for origin in value.split(",") if origin.strip()]
+
+    @property
+    def allowed_hosts(self) -> list[str]:
+        return [host.strip() for host in self.allowed_hosts_raw.split(",") if host.strip()]
 
 
 @lru_cache

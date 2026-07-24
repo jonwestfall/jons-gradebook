@@ -1,12 +1,15 @@
 #!/usr/bin/env sh
 set -e
 
+mkdir -p /data/storage /data/backups
+chown -R gradebook:gradebook /data
+
 attempt=1
 max_attempts=30
 
 while [ $attempt -le $max_attempts ]; do
   echo "Running migrations (attempt ${attempt}/${max_attempts})..."
-  if alembic upgrade head; then
+  if gosu gradebook alembic upgrade head; then
     break
   fi
 
@@ -19,4 +22,4 @@ while [ $attempt -le $max_attempts ]; do
   sleep 2
 done
 
-exec uvicorn app.main:app --host 0.0.0.0 --port 8000
+exec gosu gradebook uvicorn app.main:app --host 0.0.0.0 --port 8000

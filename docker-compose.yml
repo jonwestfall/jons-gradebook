@@ -3,15 +3,15 @@ services:
     image: postgres:16
     container_name: gradebook-db
     environment:
-      POSTGRES_DB: gradebook
-      POSTGRES_USER: gradebook
-      POSTGRES_PASSWORD: gradebook
+      POSTGRES_DB: ${POSTGRES_DB:-gradebook}
+      POSTGRES_USER: ${POSTGRES_USER:-gradebook}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - '5432:5432'
+      - '${BIND_ADDRESS:-127.0.0.1}:${DATABASE_PORT:-5432}:5432'
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U gradebook -d gradebook']
+      test: ['CMD-SHELL', 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
       interval: 10s
       timeout: 5s
       retries: 10
@@ -24,9 +24,9 @@ services:
       APP_NAME: Jon's Gradebook API
       ENV: production
       API_V1_PREFIX: /api/v1
-      SECRET_KEY: ${SECRET_KEY:-replace-me}
-      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
-      DATABASE_URL: postgresql+psycopg://gradebook:gradebook@db:5432/gradebook
+      SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?Set ENCRYPTION_KEY in .env}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-gradebook}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-gradebook}
       CANVAS_BASE_URL: ${CANVAS_BASE_URL:-}
       CANVAS_API_TOKEN: ${CANVAS_API_TOKEN:-}
       CANVAS_ACCOUNT_ID: ${CANVAS_ACCOUNT_ID:-}
@@ -35,9 +35,11 @@ services:
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
       DEFAULT_TIMEZONE: ${DEFAULT_TIMEZONE:-America/Chicago}
       DAILY_SYNC_CRON: ${DAILY_SYNC_CRON:-0 5 * * *}
+      DAILY_BACKUP_CRON: ${DAILY_BACKUP_CRON:-30 5 * * *}
       STORAGE_ROOT: /data/storage
       BACKUP_ROOT: /data/backups
-      CORS_ORIGINS: http://localhost:8080
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1,backend}
       LLM_DEIDENTIFY_DEFAULT: 'true'
     volumes:
       - gradebook_data:/data
@@ -45,7 +47,9 @@ services:
       db:
         condition: service_healthy
     ports:
-      - '8000:8000'
+      - '${BIND_ADDRESS:-127.0.0.1}:${BACKEND_PORT:-8000}:8000'
+    security_opt:
+      - no-new-privileges:true
 
   frontend:
     build:
@@ -54,7 +58,9 @@ services:
     depends_on:
       - backend
     ports:
-      - '8080:80'
+      - '${BIND_ADDRESS:-127.0.0.1}:${FRONTEND_PORT:-8080}:8080'
+    security_opt:
+      - no-new-privileges:true
 
   # Optional local LLM runtime
   # ollama:

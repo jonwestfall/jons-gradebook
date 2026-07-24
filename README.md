@@ -112,14 +112,14 @@ This is still a trusted, single-user architecture. Treat it as an instructor-con
 
 ## Quick Start With Docker
 
-1. Export secrets or create a `.env` file used by Docker Compose:
+1. Create the Docker Compose environment file:
 
 ```bash
-export SECRET_KEY='replace-me-with-real-secret'
-export ENCRYPTION_KEY='replace-with-fernet-key'
-export CANVAS_BASE_URL='https://canvas.yourschool.edu'
-export CANVAS_API_TOKEN='your-token'
+cp .env.example .env
+openssl rand -hex 32
 ```
+
+Run the `openssl` command three times and use the outputs for `SECRET_KEY`, `ENCRYPTION_KEY`, and `POSTGRES_PASSWORD` in `.env`. Replace all `replace-with-*` placeholders before startup. Production mode refuses placeholder or short application/encryption keys and the historical default database password.
 
 2. Start services:
 
@@ -138,6 +138,12 @@ docker compose exec backend alembic upgrade head
 - Frontend: `http://localhost:8080`
 - Backend API docs: `http://localhost:8000/docs`
 
+Docker services bind to `127.0.0.1` by default. This is intentional because the current single-user application has no login layer. Do not set `BIND_ADDRESS=0.0.0.0` or publish the service through a tunnel/reverse proxy unless access control and HTTPS are provided outside the application. Add any approved hostname to `ALLOWED_HOSTS` and its browser origin to `CORS_ORIGINS`.
+
+### Existing encrypted deployments
+
+Do not rotate `ENCRYPTION_KEY` casually: existing documents, backups, and protected LLM fields require the original key. If an earlier deployment left `ENCRYPTION_KEY` empty, encryption was derived from `SECRET_KEY`; set `ENCRYPTION_KEY` to that exact prior `SECRET_KEY` value before upgrading. Production now requires keys of at least 32 characters, so migrate data with the prior version first if a historical key is shorter. Verify a backup and restore drill before intentionally rotating keys.
+
 ## Local Development
 
 ### Backend
@@ -148,6 +154,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
+# Change DATABASE_URL if PostgreSQL is not running on localhost:5432.
 alembic upgrade head
 uvicorn app.main:app --reload --port 8000
 ```
@@ -206,7 +213,7 @@ npm run build
 Backend:
 
 ```bash
-cd /Users/jon/projects/git/jons-gradebook
+cd /path/to/jons-gradebook
 python3 -m compileall backend/app
 cd backend
 alembic upgrade head

@@ -27,6 +27,7 @@ If work is not committed yet, use `commit WORKTREE` temporarily and replace it a
 - [commit WORKTREE] [area: migrations] Fixed clean PostgreSQL upgrades when the metadata-backed initial migration creates later LLM governance columns before the `0016` seed runs.
 - [commit WORKTREE] [area: testing] Added backup/restore regression coverage for successful database/file recovery, confirmation enforcement, tampered artifacts, unsafe paths, SQLite foreign-key behavior, and a real PostgreSQL restore drill with identity-sequence validation.
 - [commit WORKTREE] [area: docs] Updated the restore runbook and testing strategy to document the enforced safety contract and validation commands.
+- [commit WORKTREE] [area: security] Restricted Compose ports to localhost by default, required explicit database/application/encryption secrets, added production configuration validation and host filtering, applied baseline HTTP security headers, configured application containers to run without root privileges, and updated the frontend dependency tree to zero known npm advisories.
 
 ## 2026-04-27
 - [commit WORKTREE] [area: frontend/ui] Added Settings-controlled Interface Preferences with Balanced, Minimal, and High Contrast themes.

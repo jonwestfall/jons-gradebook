@@ -6,8 +6,13 @@ ENV PYTHONUNBUFFERED=1
 WORKDIR /app
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends build-essential libpq-dev \
+    && apt-get install -y --no-install-recommends build-essential gosu libpq-dev \
     && rm -rf /var/lib/apt/lists/*
+
+RUN groupadd --system gradebook \
+    && useradd --system --gid gradebook --home-dir /app --shell /usr/sbin/nologin gradebook \
+    && mkdir -p /data/storage /data/backups \
+    && chown -R gradebook:gradebook /data
 
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt

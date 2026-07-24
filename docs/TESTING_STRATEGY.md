@@ -49,6 +49,11 @@ pytest
   - whole-artifact checksum tamper rejection before mutation
   - unsafe backup file path rejection before mutation
   - SQLite foreign-key enforcement in the fast API test fixture
+- Current deployment-security coverage:
+  - development defaults remain available for local work
+  - production rejects placeholder/short application and encryption keys
+  - production rejects the historical default database credential
+  - explicit production secrets and allowed hosts are accepted
 
 ### 1) Compile/syntax gate
 
