@@ -138,6 +138,7 @@ def downgrade() -> None:
         op.drop_index("ix_llm_workbench_jobs_source_document_id", table_name="llm_workbench_jobs")
         op.drop_index("ix_llm_workbench_jobs_student_profile_id", table_name="llm_workbench_jobs")
         op.drop_table("llm_workbench_jobs")
+    op.execute("DROP TYPE IF EXISTS llmworkbenchjobstatus")
     if "llm_instruction_templates" in table_names:
         op.drop_table("llm_instruction_templates")
     if "llm_runs" in table_names:

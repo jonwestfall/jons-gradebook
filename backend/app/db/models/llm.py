@@ -91,8 +91,8 @@ class LLMWorkbenchJob(Base, TimestampMixin):
     __tablename__ = "llm_workbench_jobs"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    student_profile_id: Mapped[int] = mapped_column(ForeignKey("student_profiles.id", ondelete="CASCADE"), nullable=False)
-    source_document_id: Mapped[int] = mapped_column(ForeignKey("stored_documents.id", ondelete="CASCADE"), nullable=False)
+    student_profile_id: Mapped[int] = mapped_column(ForeignKey("student_profiles.id", ondelete="CASCADE"), nullable=False, index=True)
+    source_document_id: Mapped[int] = mapped_column(ForeignKey("stored_documents.id", ondelete="CASCADE"), nullable=False, index=True)
     instruction_template_id: Mapped[int] = mapped_column(ForeignKey("llm_instruction_templates.id", ondelete="RESTRICT"), nullable=False)
     rubric_id: Mapped[Optional[int]] = mapped_column(ForeignKey("rubric_templates.id", ondelete="SET NULL"))
     llm_run_id: Mapped[Optional[int]] = mapped_column(ForeignKey("llm_runs.id", ondelete="SET NULL"))

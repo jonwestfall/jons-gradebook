@@ -1,1 +1,36 @@
 Single-user migration history for Jon's Gradebook.
+
+Rules for writing migrations
+----------------------------
+
+1. Never import the ORM models (app.db.models) and never call
+   Base.metadata.create_all() from a migration. A migration must describe a fixed
+   change; if it reads the live models, what it creates changes every time a model
+   changes. Revision 20260421_0001 did this and broke fresh installs (issue #1).
+   tests/test_migrations.py enforces this rule.
+
+2. Write explicit DDL with op.create_table / op.add_column / op.create_index.
+   `alembic revision --autogenerate -m "..."` against an up-to-date database is a
+   good starting point; review the output before committing.
+
+3. Data-seeding SQL must supply every NOT NULL column explicitly. Databases created
+   before revision 20261022_0018 may lack the server defaults a fresh install has,
+   so do not rely on server defaults in INSERT statements.
+
+4. Guard DDL with the inspector (has_table, get_columns, get_indexes) when a change
+   may already exist on some installs, and make downgrade() reverse what upgrade()
+   created, including PostgreSQL enum types (DROP TYPE IF EXISTS ...).
+
+5. Keep the models and the migrated schema in sync. After editing a model, add a
+   migration and confirm `alembic check` reports "No new upgrade operations detected".
+
+Verifying migrations
+--------------------
+
+    cd backend
+    # Fresh install, drift check, and downgrade/upgrade round trip on a throwaway DB:
+    TEST_DATABASE_URL=postgresql+psycopg://USER:PASS@localhost:5432/postgres pytest tests/test_migrations.py
+
+    # Against your own development database:
+    alembic upgrade head
+    alembic check

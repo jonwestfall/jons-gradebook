@@ -181,7 +181,7 @@ class CanvasSyncConflict(Base, TimestampMixin):
     canvas_status: Mapped[Optional[str]] = mapped_column(String(40))
     local_source: Mapped[Optional[str]] = mapped_column(String(40))
     status: Mapped[CanvasSyncConflictStatus] = mapped_column(
-        Enum(CanvasSyncConflictStatus, native_enum=False),
+        Enum(CanvasSyncConflictStatus, native_enum=False, length=40),
         nullable=False,
         default=CanvasSyncConflictStatus.pending,
     )

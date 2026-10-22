@@ -278,7 +278,7 @@ class GradebookCalculatedColumn(Base, TimestampMixin):
     course_id: Mapped[int] = mapped_column(ForeignKey("courses.id", ondelete="CASCADE"), nullable=False, index=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     operation: Mapped[CalculatedColumnOperation] = mapped_column(
-        Enum(CalculatedColumnOperation, native_enum=False), nullable=False
+        Enum(CalculatedColumnOperation, native_enum=False, length=32), nullable=False
     )
     assignment_ids: Mapped[list[int]] = mapped_column(JSON, nullable=False, default=list)
     display_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

@@ -22,6 +22,12 @@ If work is not committed yet, use `commit WORKTREE` temporarily and replace it a
 
 ---
 
+## 2026-10-22
+- [commit WORKTREE] [area: migrations] Fixed fresh installs failing at revision `20260424_0016` (issue #1). Revision `20260421_0001` no longer calls `Base.metadata.create_all()` on the live models; it is now a frozen, explicit snapshot of the original schema, so the full migration chain runs on an empty database.
+- [commit WORKTREE] [area: migrations] Added revision `20261022_0018`, which converges existing installs (built from different model versions) onto the model schema: JSON/JSONB column types, string-enum column widths, missing foreign-key indexes, and redundant unique constraints.
+- [commit WORKTREE] [area: migrations] Fixed `20260424_0016` downgrade leaving the `llmworkbenchjobstatus` enum type behind, and escaped `%` in database URLs passed to Alembic.
+- [commit WORKTREE] [area: backend/testing] Added `tests/test_migrations.py` (fresh install + `alembic check` + downgrade/upgrade on PostgreSQL via `TEST_DATABASE_URL`) and documented migration-writing rules in `backend/app/db/migrations/README`.
+
 ## 2026-04-27
 - [commit WORKTREE] [area: frontend/ui] Added Settings-controlled Interface Preferences with Balanced, Minimal, and High Contrast themes.
 - [commit WORKTREE] [area: frontend/demo] Added browser-local Demo mode with screenshot-safe student, course, task, document, dashboard, and gradebook sample data plus global "Demo mode" labeling.
