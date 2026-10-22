@@ -3,6 +3,11 @@ import { isDemoModeEnabled } from '../utils/uiPreferences'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api/v1'
 
+/** Absolute URL for links the browser opens directly, such as file downloads. */
+export function apiUrl(path: string): string {
+  return `${API_BASE}${path}`
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (isDemoModeEnabled()) {
     return handleDemoRequest(path, init) as Promise<T>

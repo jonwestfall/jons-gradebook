@@ -94,7 +94,7 @@ The app includes a browser-local demo mode for screenshot-safe walkthroughs. See
 
 - Field-level encryption for sensitive values.
 - Encrypted file blobs for uploaded documents.
-- Encrypted backup artifacts.
+- Encrypted backup artifacts with restore preflight, an automatic safety backup before every restore, and download/import for keeping copies off the machine (see the [restore runbook](docs/RESTORE_RUNBOOK.md)).
 - De-identification preview before LLM send.
 - Encrypted de-identification replacement maps for new LLM runs.
 - Read-only Canvas integration in the current phase.

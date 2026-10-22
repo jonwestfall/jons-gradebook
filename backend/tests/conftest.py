@@ -1,4 +1,5 @@
 from collections.abc import Generator
+from pathlib import Path
 
 import pytest
 from fastapi import FastAPI
@@ -10,6 +11,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.api.router import api_router
+from app.core.config import get_settings
 from app.db.models import Base
 from app.db.session import get_db
 
@@ -17,6 +19,16 @@ from app.db.session import get_db
 @compiles(JSONB, "sqlite")
 def _compile_jsonb_sqlite(_type, compiler, **kwargs):
     return "JSON"
+
+
+@pytest.fixture(autouse=True)
+def isolated_storage(tmp_path, monkeypatch) -> dict[str, Path]:
+    """Point STORAGE_ROOT and BACKUP_ROOT at per-test temp dirs so tests never touch /data."""
+    settings = get_settings()
+    roots = {"storage": tmp_path / "storage", "backups": tmp_path / "backups"}
+    monkeypatch.setattr(settings, "storage_root", str(roots["storage"]))
+    monkeypatch.setattr(settings, "backup_root", str(roots["backups"]))
+    return roots
 
 
 @pytest.fixture()
