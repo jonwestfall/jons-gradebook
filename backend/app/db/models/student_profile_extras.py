@@ -27,10 +27,10 @@ class StudentAlert(Base, TimestampMixin):
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     message: Mapped[str] = mapped_column(Text, nullable=False)
     severity: Mapped[AlertSeverity] = mapped_column(
-        Enum(AlertSeverity, native_enum=False), nullable=False, default=AlertSeverity.medium
+        Enum(AlertSeverity, native_enum=False, length=16), nullable=False, default=AlertSeverity.medium
     )
     status: Mapped[AlertStatus] = mapped_column(
-        Enum(AlertStatus, native_enum=False), nullable=False, default=AlertStatus.active
+        Enum(AlertStatus, native_enum=False, length=16), nullable=False, default=AlertStatus.active
     )
     is_pinned: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 

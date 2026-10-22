@@ -29,10 +29,10 @@ class Task(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     status: Mapped[TaskStatus] = mapped_column(
-        Enum(TaskStatus, native_enum=False), nullable=False, default=TaskStatus.open
+        Enum(TaskStatus, native_enum=False, length=24), nullable=False, default=TaskStatus.open
     )
     priority: Mapped[TaskPriority] = mapped_column(
-        Enum(TaskPriority, native_enum=False), nullable=False, default=TaskPriority.medium
+        Enum(TaskPriority, native_enum=False, length=24), nullable=False, default=TaskPriority.medium
     )
     due_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     note: Mapped[Optional[str]] = mapped_column(Text)

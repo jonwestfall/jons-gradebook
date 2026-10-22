@@ -10,7 +10,10 @@ from app.db.models import Base
 
 config = context.config
 settings = get_settings()
-config.set_main_option("sqlalchemy.url", settings.database_url)
+# Tests pass an explicit URL through config.attributes; otherwise use app settings.
+database_url = config.attributes.get("database_url") or settings.database_url
+# Escape "%" so passwords containing it survive ConfigParser interpolation.
+config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)

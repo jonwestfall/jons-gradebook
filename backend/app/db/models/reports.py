@@ -44,8 +44,8 @@ class ReportRun(Base, TimestampMixin):
     __tablename__ = "report_runs"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    template_id: Mapped[Optional[int]] = mapped_column(ForeignKey("report_templates.id", ondelete="SET NULL"))
-    student_id: Mapped[int] = mapped_column(ForeignKey("student_profiles.id", ondelete="CASCADE"), nullable=False)
+    template_id: Mapped[Optional[int]] = mapped_column(ForeignKey("report_templates.id", ondelete="SET NULL"), index=True)
+    student_id: Mapped[int] = mapped_column(ForeignKey("student_profiles.id", ondelete="CASCADE"), nullable=False, index=True)
     report_type: Mapped[str] = mapped_column(String(60), nullable=False, default="student")
     filters_json: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     pdf_path: Mapped[str] = mapped_column(String(1024), nullable=False)

@@ -53,15 +53,16 @@ python3 -m compileall backend/app
 
 - Lightweight syntax/integrity guard for router/model/schema/service changes.
 
-### 2) Migration integrity (manual today)
+### 2) Migration integrity
 
 ```bash
 cd backend
-alembic upgrade head
+TEST_DATABASE_URL=postgresql+psycopg://USER:PASS@localhost:5432/postgres pytest tests/test_migrations.py
 ```
 
-- Required after backend model changes.
-- Must be validated in local/dev DB before deployment.
+- Creates a throwaway PostgreSQL database, runs `alembic upgrade head` from empty, runs `alembic check` to confirm the migrated schema matches the models, then downgrades to base and upgrades again.
+- Without `TEST_DATABASE_URL` these tests are skipped; the check that no migration imports the live ORM models still runs.
+- Required after backend model changes. Rules for writing migrations live in `backend/app/db/migrations/README`.
 
 ## Workflow QA
 
@@ -91,9 +92,9 @@ Manual QA remains important because many workflows are visual and operational: a
 - report renderer config normalization and document artifact creation
 - LLM de-identification map encryption and source-document ownership/link checks
 
-3. Add migration tests:
-- upgrade from previous head to latest
-- downgrade/upgrade sanity for newly introduced tables
+3. Extend migration tests (fresh install, drift check, and downgrade/upgrade now covered by `tests/test_migrations.py`):
+- upgrade from previous head to latest with representative data
+- run the PostgreSQL lane in CI (issue #14)
 
 ## Frontend test expansion
 
