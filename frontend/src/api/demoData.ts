@@ -730,7 +730,8 @@ function noOpResult(path: string, method: HttpMethod, body?: unknown) {
   if (path === '/courses/meetings/generate') return { generated_count: 6 }
   if (path === '/rubrics/') return demoRubrics[0]
   if (path.match(/^\/rubrics\/\d+/)) return demoRubrics[0]
-  if (path === '/backup/restore') return { restored_tables: 0, restored_files: 0, generated_at: now.toISOString() }
+  if (path === '/backup/restore') return { restored_tables: 0, restored_files: 0, generated_at: now.toISOString(), safety_backup_id: null, warnings: [] }
+  if (path === '/backup/import') return { id: 991, backup_path: 'demo://imported', checksum_sha256: 'demo-mode', encrypted: true, created_at: now.toISOString(), note: 'Demo imported backup' }
   if (path === '/backup/') return { id: 990, backup_path: 'demo://backup', checksum_sha256: 'demo-mode', encrypted: true, created_at: now.toISOString(), note: 'Demo backup artifact' }
   if (path === '/tasks/' && method === 'POST' && body && typeof body === 'object') {
     const next: DemoTask = {

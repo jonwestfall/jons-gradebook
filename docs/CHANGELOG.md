@@ -23,6 +23,12 @@ If work is not committed yet, use `commit WORKTREE` temporarily and replace it a
 ---
 
 ## 2026-10-22
+- [commit WORKTREE] [area: backup] Fixed `POST /backup/restore`, which always failed with "A transaction is already begun" (issue #2). Restore now rewrites the database in one transaction and swaps stored files in only at commit, rolling both back on any failure.
+- [commit WORKTREE] [area: backup] Restore resets PostgreSQL sequences (restoring onto a new database no longer breaks the next insert), deletes child tables first so `ON DELETE RESTRICT` keys cannot block it, decodes date/time values, and rejects file paths that escape `STORAGE_ROOT`.
+- [commit WORKTREE] [area: backup] Every restore first takes an automatic safety backup. Backups now record their schema revision; preflight and restore refuse a mismatch and verify the file checksum before decrypting.
+- [commit WORKTREE] [area: backup] Added `GET /backup/{id}/download` and `POST /backup/import`, plus Settings controls for both, so backups can be kept off the machine and restored onto a new install.
+- [commit WORKTREE] [area: backend/testing] Added `tests/test_backup_restore.py` (SQLite API suite plus PostgreSQL disaster-recovery and foreign-key tests), shared PostgreSQL helpers in `tests/pg_support.py`, and an autouse fixture keeping test storage out of `/data`.
+- [commit WORKTREE] [area: docs] Rewrote `docs/RESTORE_RUNBOOK.md` for same-machine rollback and new-machine recovery, with the recorded 2026-10-22 drill.
 - [commit fcdf0ff] [area: migrations] Fixed fresh installs failing at revision `20260424_0016` (issue #1). Revision `20260421_0001` no longer calls `Base.metadata.create_all()` on the live models; it is now a frozen, explicit snapshot of the original schema, so the full migration chain runs on an empty database.
 - [commit fcdf0ff] [area: migrations] Added revision `20261022_0018`, which converges existing installs (built from different model versions) onto the model schema: JSON/JSONB column types, string-enum column widths, missing foreign-key indexes, and redundant unique constraints.
 - [commit fcdf0ff] [area: migrations] Fixed `20260424_0016` downgrade leaving the `llmworkbenchjobstatus` enum type behind, and escaped `%` in database URLs passed to Alembic.

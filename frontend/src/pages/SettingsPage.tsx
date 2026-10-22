@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react'
-import { api } from '../api/client'
+import { api, apiUrl } from '../api/client'
 import {
   AppTheme,
   isDemoModeEnabled,
@@ -19,6 +19,8 @@ type BackupArtifact = {
 
 type BackupDetail = BackupArtifact & {
   generated_at?: string | null
+  format_version?: number
+  alembic_revision?: string | null
   settings: Record<string, unknown>
   table_counts: Record<string, number>
   file_count: number
@@ -27,6 +29,10 @@ type BackupDetail = BackupArtifact & {
 type RestorePreflight = {
   backup_id: number
   backup_generated_at?: string | null
+  backup_alembic_revision?: string | null
+  current_alembic_revision?: string | null
+  can_restore: boolean
+  warnings: string[]
   current_file_count: number
   backup_file_count: number
   file_delta: number
@@ -55,6 +61,7 @@ export function SettingsPage() {
   const [error, setError] = useState<string | null>(null)
   const [lastRestoreMessage, setLastRestoreMessage] = useState<string | null>(null)
   const [restorePhrase, setRestorePhrase] = useState('')
+  const [importFile, setImportFile] = useState<File | null>(null)
   const [preflight, setPreflight] = useState<RestorePreflight | null>(null)
   const [documentCategories, setDocumentCategories] = useState<string[]>([])
   const [interactionCategories, setInteractionCategories] = useState<string[]>([])
@@ -121,6 +128,27 @@ export function SettingsPage() {
     }
   }
 
+  async function importBackup(event: FormEvent) {
+    event.preventDefault()
+    if (!importFile) return
+    setBusy(true)
+    setError(null)
+    try {
+      const form = new FormData()
+      form.append('file', importFile)
+      const imported = await api.post<BackupArtifact>('/backup/import', form)
+      setImportFile(null)
+      ;(event.target as HTMLFormElement).reset()
+      await loadBackups()
+      setSelectedBackupId(imported.id)
+      setLastRestoreMessage(`Imported backup #${imported.id}. Review the preflight comparison before restoring.`)
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function restoreSelectedBackup() {
     if (!selectedBackupId) return
     if (restorePhrase.trim().toUpperCase() !== 'RESTORE') {
@@ -132,12 +160,19 @@ export function SettingsPage() {
     setError(null)
     setLastRestoreMessage(null)
     try {
-      const result = await api.post<{ restored_tables: number; restored_files: number; generated_at?: string }>(
-        '/backup/restore',
-        { backup_id: selectedBackupId },
-      )
+      const result = await api.post<{
+        restored_tables: number
+        restored_files: number
+        generated_at?: string
+        safety_backup_id?: number | null
+        warnings?: string[]
+      }>('/backup/restore', { backup_id: selectedBackupId })
+      const safetyNote = result.safety_backup_id
+        ? ` The previous state was saved as backup #${result.safety_backup_id}.`
+        : ''
+      const warningNote = result.warnings?.length ? ` Notes: ${result.warnings.join(' ')}` : ''
       setLastRestoreMessage(
-        `Restore complete: ${result.restored_tables} tables and ${result.restored_files} files restored.`,
+        `Restore complete: ${result.restored_tables} tables and ${result.restored_files} files restored.${safetyNote}${warningNote}`,
       )
       await loadBackups()
       await loadBackupDetail(selectedBackupId)
@@ -240,14 +275,43 @@ export function SettingsPage() {
           <button onClick={() => void loadBackups()} disabled={busy}>
             Refresh Backups
           </button>
-          <button onClick={() => void restoreSelectedBackup()} disabled={busy || !selectedBackupId}>
+          {selectedBackupId && !demoMode ? (
+            <a className="file-button" href={apiUrl(`/backup/${selectedBackupId}/download`)} download>
+              Download Selected Backup
+            </a>
+          ) : null}
+          <button
+            onClick={() => void restoreSelectedBackup()}
+            disabled={busy || !selectedBackupId || preflight?.can_restore === false}
+          >
             Restore Selected Backup
           </button>
         </div>
 
+        <form className="form" style={{ marginTop: '0.75rem' }} onSubmit={importBackup}>
+          <label>
+            Import backup file
+            <input
+              type="file"
+              accept=".enc,application/octet-stream"
+              onChange={(event) => setImportFile(event.target.files?.[0] ?? null)}
+            />
+          </label>
+          <button type="submit" disabled={busy || !importFile}>
+            Import Backup
+          </button>
+          <small>
+            Use this to restore on a new machine. The file must have been created with the same ENCRYPTION_KEY.
+            Download backups regularly and keep copies off this machine.
+          </small>
+        </form>
+
         <div className="card" style={{ marginTop: '0.75rem' }}>
           <strong>Restore Safety Check</strong>
-          <p>Restoring replaces current database records and stored files with artifact contents.</p>
+          <p>
+            Restoring replaces current database records and stored files with artifact contents. A safety backup of the
+            current state is created automatically first, so a restore can be undone.
+          </p>
           <input
             placeholder="Type RESTORE to enable restore"
             value={restorePhrase}
@@ -267,6 +331,7 @@ export function SettingsPage() {
             <div>Checksum: {selectedBackup.checksum_sha256}</div>
             <div>Path: {selectedBackup.backup_path}</div>
             <div>Note: {selectedBackup.note || 'N/A'}</div>
+            <div>Schema revision: {selectedBackup.alembic_revision || 'not recorded (older backup)'}</div>
             <div style={{ marginTop: '0.5rem' }}>
               <strong>Table row counts</strong>
               <ul className="list" style={{ maxHeight: '180px', overflow: 'auto', marginTop: '0.4rem' }}>
@@ -283,6 +348,17 @@ export function SettingsPage() {
         {preflight ? (
           <div className="card" style={{ marginTop: '0.75rem' }}>
             <strong>Restore Preflight Comparison</strong>
+            <div>
+              Schema revision: backup {preflight.backup_alembic_revision || 'not recorded'} vs current{' '}
+              {preflight.current_alembic_revision || 'unknown'}
+            </div>
+            {preflight.warnings.length ? (
+              <ul className={preflight.can_restore ? 'list' : 'list error'}>
+                {preflight.warnings.map((warning) => (
+                  <li key={warning}>{warning}</li>
+                ))}
+              </ul>
+            ) : null}
             <div>
               Files: current {preflight.current_file_count} vs backup {preflight.backup_file_count} (delta{' '}
               {preflight.file_delta >= 0 ? `+${preflight.file_delta}` : preflight.file_delta})

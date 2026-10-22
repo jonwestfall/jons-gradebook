@@ -43,6 +43,8 @@ pytest
   - API route tests for Canvas conflicts/diffs, tasks, workflow benchmarks, backup preflight/restore, Reports, and LLM Workbench
   - Service tests for risk scoring, intervention deduplication, report generation, and de-identification
   - Migration upgrade checks for current head
+- Current backup/restore coverage (`tests/test_backup_restore.py`): round trip of rows and files, rollback of a failed restore, unsafe file paths, checksum and schema-revision checks, import and download. With `TEST_DATABASE_URL` set it also runs disaster recovery onto a new PostgreSQL database (sequence reset) and restore over existing data (foreign-key order).
+- PostgreSQL-backed tests share helpers in `tests/pg_support.py`; every test points `STORAGE_ROOT`/`BACKUP_ROOT` at temp dirs via the autouse `isolated_storage` fixture.
 
 ### 1) Compile/syntax gate
 

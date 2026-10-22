@@ -379,6 +379,55 @@ function mockApiFetch() {
       return jsonResponse([])
     }
 
+    if (url.endsWith('/api/v1/backup/7/preflight')) {
+      return jsonResponse({
+        backup_id: 7,
+        backup_generated_at: '2026-10-01T12:00:00+00:00',
+        backup_alembic_revision: '20260425_0017',
+        current_alembic_revision: '20261022_0018',
+        can_restore: false,
+        warnings: ['Backup was created at database revision 20260425_0017, but this database is at 20261022_0018.'],
+        current_file_count: 2,
+        backup_file_count: 1,
+        file_delta: -1,
+        table_deltas: [{ table: 'student_profiles', current_rows: 3, backup_rows: 2, delta_rows: -1 }],
+      })
+    }
+
+    if (url.endsWith('/api/v1/backup/7')) {
+      return jsonResponse({
+        id: 7,
+        backup_path: '/data/backups/gradebook-backup-1.json.enc',
+        checksum_sha256: 'abc123',
+        encrypted: true,
+        created_at: '2026-10-01T12:00:00+00:00',
+        note: 'Before term rollover',
+        generated_at: '2026-10-01T12:00:00+00:00',
+        format_version: 2,
+        alembic_revision: '20260425_0017',
+        settings: {},
+        table_counts: { student_profiles: 2 },
+        file_count: 1,
+      })
+    }
+
+    if (url.endsWith('/api/v1/backup/')) {
+      return jsonResponse([
+        {
+          id: 7,
+          backup_path: '/data/backups/gradebook-backup-1.json.enc',
+          checksum_sha256: 'abc123',
+          encrypted: true,
+          created_at: '2026-10-01T12:00:00+00:00',
+          note: 'Before term rollover',
+        },
+      ])
+    }
+
+    if (url.endsWith('/api/v1/settings/options')) {
+      return jsonResponse({ document_categories: [], interaction_categories: [], intervention_rules: [] })
+    }
+
     if (url.endsWith('/api/v1/courses/')) {
       return jsonResponse([{ id: 1, name: 'Biology 101', section_name: 'A' }])
     }
@@ -498,5 +547,21 @@ describe('App smoke routes', () => {
     expect(await screen.findByText('Student Feedback Workbench')).toBeInTheDocument()
     expect(await screen.findByText('Paper Feedback')).toBeInTheDocument()
     expect(await screen.findByText('Replacement Map')).toBeInTheDocument()
+  })
+
+  it('blocks restoring an incompatible backup and offers download and import', async () => {
+    render(
+      <MemoryRouter initialEntries={['/settings']}>
+        <App />
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByText(/Backup was created at database revision 20260425_0017/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Restore Selected Backup' })).toBeDisabled()
+    expect(screen.getByRole('link', { name: 'Download Selected Backup' })).toHaveAttribute(
+      'href',
+      '/api/v1/backup/7/download',
+    )
+    expect(screen.getByRole('button', { name: 'Import Backup' })).toBeDisabled()
   })
 })

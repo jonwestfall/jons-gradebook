@@ -146,6 +146,7 @@ Use this checklist to validate the V2 action-first workflows for a professor-fac
 - [ ] Preflight evidence is captured.
 - [ ] Restore execution completes.
 - [ ] Post-restore route/document/report/LLM validation is recorded.
+- [ ] New-machine recovery (download, import on an empty install, restore) is exercised at least once per release.
 
 ## 12) Professor Walkthrough Readiness
 

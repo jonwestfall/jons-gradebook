@@ -144,13 +144,19 @@ Use this checklist to validate V1 end-to-end before release or major merge.
 - [ ] Manual backup creation succeeds.
 - [ ] Backup artifact appears in Settings/backup list.
 
+- [ ] Backup downloads from Settings (**Download Selected Backup**).
+- [ ] A downloaded backup imports on a fresh install (**Import Backup**).
+
 ### 7.2 Restore Safety
-- [ ] Restore preflight shows comparison summary.
+- [ ] Restore preflight shows comparison summary, schema revisions, and warnings.
+- [ ] Restore is disabled when preflight reports the backup cannot be restored (e.g. schema revision mismatch).
 - [ ] Typed confirmation gate (`RESTORE`) is required.
 
-### 7.3 Restore Execution (when implemented)
+### 7.3 Restore Execution
 - [ ] Full restore from one artifact completes.
 - [ ] System state (DB + files + settings/templates) reflects artifact.
+- [ ] Result message names the automatic safety backup, and restoring it undoes the restore.
+- [ ] New records and uploads work after restore.
 
 ## 8) Security + Data Handling (V1 Scope)
 
